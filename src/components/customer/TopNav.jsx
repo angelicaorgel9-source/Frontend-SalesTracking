@@ -1,7 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Bell, Settings, Plus } from 'lucide-react'
+import { Bell, Settings, Plus, LogOut } from 'lucide-react'
 import logo from '../../assets/logo.png'
 import { useCustomerProfile } from '../../context/CustomerProfileContext.jsx'
+import { useToast } from '../../context/ToastContext.jsx'
 
 const navLinks = [
   { to: '/customer/home', label: 'Home' },
@@ -13,6 +14,12 @@ const navLinks = [
 export default function TopNav({ hasUnread = false, onNewOrder = () => {} }) {
   const navigate = useNavigate()
   const { profile } = useCustomerProfile()
+
+  const { showToast } = useToast()
+  const handleLogout = () => {
+    showToast('You have been logged out.', 'info')
+    navigate('/customer/login')
+  }
 
   return (
     <header className="customer-topnav">
@@ -46,6 +53,9 @@ export default function TopNav({ hasUnread = false, onNewOrder = () => {} }) {
         </button>
         <button className="icon-btn" title="Settings" onClick={() => navigate('/customer/settings')}>
           <Settings />
+        </button>
+        <button className="icon-btn" title="Log out" onClick={handleLogout}>
+          <LogOut />
         </button>
         <button className="customer-topnav-avatar" onClick={() => navigate('/customer/profile')} title={profile.name}>
           <img src={profile.avatar} alt={profile.name} />

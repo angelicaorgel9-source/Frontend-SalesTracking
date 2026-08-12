@@ -81,7 +81,7 @@ export default function CustomerSignUp() {
       avatar: '/src/assets/logo.png',
     }))
 
-    setSuccess('Account created successfully. Redirecting to login...')
+    setSuccess('Account created successfully. Redirecting to your customer home...')
     setForm({
       fullName: '',
       email: '',
@@ -91,7 +91,7 @@ export default function CustomerSignUp() {
     })
     setAgree(false)
 
-    setTimeout(() => navigate('/login'), 700)
+    setTimeout(() => navigate('/customer/home'), 700)
   }
 
   return (

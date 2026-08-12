@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Mail, Pencil, ShieldCheck, Laptop, Smartphone } from 'lucide-react'
 import CustomerLayout from '../../layouts/CustomerLayout.jsx'
+import ConfirmModal from '../../components/ConfirmModal.jsx'
 import EditProfileModal from '../../components/customer/modals/EditProfileModal.jsx'
 import { useCustomerProfile } from '../../context/CustomerProfileContext.jsx'
 import { useToast } from '../../context/ToastContext.jsx'
@@ -16,6 +17,13 @@ export default function CustomerProfile() {
   const { showToast } = useToast()
   const { profile, openEditProfile, showEditProfile, closeEditProfile } = useCustomerProfile()
   const [twoFactor, setTwoFactor] = useState(true)
+  const [showLogout, setShowLogout] = useState(false)
+
+  const handleConfirmLogout = () => {
+    setShowLogout(false)
+    showToast('You have been logged out.', 'info')
+    navigate('/customer/login')
+  }
 
   return (
     <CustomerLayout>
@@ -43,6 +51,9 @@ export default function CustomerProfile() {
           <div className="flex-row gap-8">
             <button className="btn btn-outline btn-sm" onClick={() => showToast('Opening email client…', 'info')}>
               <Mail size={14} /> Contact
+            </button>
+            <button className="btn btn-outline btn-sm" onClick={() => setShowLogout(true)}>
+              <ArrowLeft size={14} /> Log Out
             </button>
             <button className="btn btn-primary btn-sm" onClick={openEditProfile}>
               <Pencil size={14} /> Edit Profile
@@ -102,7 +113,27 @@ export default function CustomerProfile() {
         </button>
       </div>
 
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          className="btn"
+          style={{ background: 'var(--color-danger-bg)', color: 'var(--color-danger)' }}
+          onClick={() => setShowLogout(true)}
+        >
+          Logout
+        </button>
+      </div>
+
       {showEditProfile && <EditProfileModal onClose={closeEditProfile} />}
+      {showLogout && (
+        <ConfirmModal
+          title="Log Out"
+          message="Are you sure you want to log out of your account?"
+          confirmLabel="Log Out"
+          cancelLabel="Cancel"
+          onCancel={() => setShowLogout(false)}
+          onConfirm={handleConfirmLogout}
+        />
+      )}
     </CustomerLayout>
   )
 }

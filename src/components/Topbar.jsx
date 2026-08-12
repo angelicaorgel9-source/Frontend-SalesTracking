@@ -1,9 +1,12 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Bell, MapPin, Menu } from 'lucide-react'
 
 export default function Topbar({
   title,
   searchPlaceholder = 'Search...',
+  searchValue = '',
+  onSearch,
   locationLabel = 'Baliuag',
   onMenuClick,
   rightSlot,
@@ -11,6 +14,19 @@ export default function Topbar({
   hasUnread = false,
 }) {
   const navigate = useNavigate()
+  const [query, setQuery] = useState(searchValue)
+
+  useEffect(() => {
+    setQuery(searchValue)
+  }, [searchValue])
+
+  const handleSearchChange = (event) => {
+    const nextQuery = event.target.value
+    setQuery(nextQuery)
+    if (typeof onSearch === 'function') {
+      onSearch(nextQuery)
+    }
+  }
 
   return (
     <header className="topbar">
@@ -23,7 +39,7 @@ export default function Topbar({
         ) : (
           <div className="topbar-search">
             <Search />
-            <input placeholder={searchPlaceholder} />
+            <input placeholder={searchPlaceholder} value={query} onChange={handleSearchChange} />
           </div>
         )}
       </div>

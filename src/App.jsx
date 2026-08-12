@@ -37,7 +37,7 @@ import CustomerSettings from './pages/customer/Settings.jsx'
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/customer/login" replace />} />
+      <Route path="/" element={<Navigate to="/customer/home" replace />} />
       <Route path="/login" element={<Login portal="customer" />} />
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/employee/login" element={<EmployeeLogin />} />
@@ -142,7 +142,7 @@ export default function App() {
         element={<CustomerProfileProvider><CustomerSettings /></CustomerProfileProvider>}
       />
 
-      <Route path="*" element={<Navigate to="/customer/login" replace />} />
+      <Route path="*" element={<Navigate to="/customer/home" replace />} />
     </Routes>
   )
 }
