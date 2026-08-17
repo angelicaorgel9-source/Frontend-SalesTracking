@@ -12,7 +12,12 @@ export default function Home() {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const [transactionId, setTransactionId] = useState('')
+  const [visibleStart, setVisibleStart] = useState(0)
   const featured = featuredIds.map((id) => customerProducts.find((p) => p.id === id)).filter(Boolean)
+  const visibleFeatured = Array.from({ length: Math.min(3, featured.length) }, (_, index) => {
+    const productIndex = (visibleStart + index) % featured.length
+    return featured[productIndex]
+  })
 
   const handleTrack = () => {
     if (!transactionId.trim()) {
@@ -20,6 +25,10 @@ export default function Home() {
       return
     }
     navigate(`/customer/track-order?id=${encodeURIComponent(transactionId.trim())}`)
+  }
+
+  const handleNextFeatured = () => {
+    setVisibleStart((prev) => (prev + 1) % featured.length)
   }
 
   return (
@@ -38,25 +47,31 @@ export default function Home() {
         </Link>
       </div>
 
-      <div className="customer-product-grid mb-20">
-        {featured.map((p) => {
-          const Icon = p.icon
-          return (
-            <div
-              key={p.id}
-              className="customer-product-card"
-              onClick={() => navigate('/customer/products-services')}
-            >
-              <div className="customer-product-thumb" style={{ background: `linear-gradient(135deg, ${p.color}26, ${p.color}08)` }}>
-                <Icon size={34} color={p.color} strokeWidth={1.5} />
+      <div className="customer-product-showcase mb-20">
+        <div className="customer-product-grid">
+          {visibleFeatured.map((p) => {
+            const Icon = p.icon
+            return (
+              <div
+                key={p.id}
+                className="customer-product-card"
+                onClick={() => navigate('/customer/products-services')}
+              >
+                <div className="customer-product-thumb" style={{ background: `linear-gradient(135deg, ${p.color}26, ${p.color}08)` }}>
+                  <Icon size={34} color={p.color} strokeWidth={1.5} />
+                </div>
+                <div className="customer-product-info">
+                  <div className="cell-primary">{p.name}</div>
+                  <div className="cell-sub">{p.desc}</div>
+                </div>
               </div>
-              <div className="customer-product-info">
-                <div className="cell-primary">{p.name}</div>
-                <div className="cell-sub">{p.desc}</div>
-              </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
+
+        <button className="customer-product-next" onClick={handleNextFeatured} aria-label="View more products">
+          <ArrowRight size={18} />
+        </button>
       </div>
 
       <div className="card card-pad customer-track-box">

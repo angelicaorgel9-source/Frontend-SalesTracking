@@ -1,12 +1,20 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, Sparkles } from 'lucide-react'
+import { Users, Sparkles, Pencil } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout.jsx'
 import StatCard from '../../components/StatCard.jsx'
+import ActionMenu from '../../components/ActionMenu.jsx'
 import CustomerDetailsModal from '../../components/admin/modals/CustomerDetailsModal.jsx'
 import EditCustomerModal from '../../components/admin/modals/EditCustomerModal.jsx'
 import { customerRegistry as seedRegistry, customerGrowthTrend } from '../../data/adminMockData.js'
 import { useToast } from '../../context/ToastContext.jsx'
+
+const statusBadge = {
+  Active: 'badge-success',
+  Printing: 'badge-danger',
+  Pending: 'badge-warning',
+  Inactive: 'badge-neutral',
+}
 
 export default function Customers() {
   const navigate = useNavigate()
@@ -24,6 +32,7 @@ export default function Customers() {
       company: form.company,
       email: form.email,
       phone: form.phone,
+      status: form.status,
     } : c)))
     setEditCustomer(null)
     showToast('Customer profile updated', 'success')
@@ -79,7 +88,9 @@ export default function Customers() {
                 <th>Customer Name</th>
                 <th>Contact Info</th>
                 <th>Total Orders</th>
+                <th>Status</th>
                 <th>Last Transaction</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -103,8 +114,19 @@ export default function Customers() {
                     <div className="cell-sub" style={{ color: 'var(--color-primary)' }}>{c.spend} {c.spendLabel}</div>
                   </td>
                   <td>
+                    <span className={`badge ${statusBadge[c.status] || 'badge-neutral'}`}>{c.status || 'Active'}</span>
+                  </td>
+                  <td>
                     <div className="text-secondary">{c.lastDate}</div>
                     <div className="cell-sub">{c.lastNote}</div>
+                  </td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <ActionMenu
+                      items={[
+                        { label: 'View Details', icon: Users, onClick: () => setViewCustomer(c) },
+                        { label: 'Edit Customer', icon: Pencil, onClick: () => setEditCustomer(c) },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

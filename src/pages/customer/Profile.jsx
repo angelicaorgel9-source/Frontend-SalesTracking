@@ -1,139 +1,161 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Mail, Pencil, ShieldCheck, Laptop, Smartphone } from 'lucide-react'
+import { useNavigate, Link } from 'react-router-dom'
+import { ArrowLeft, Mail, Pencil, Bell, LogOut, Settings, ClipboardList } from 'lucide-react'
 import CustomerLayout from '../../layouts/CustomerLayout.jsx'
-import ConfirmModal from '../../components/ConfirmModal.jsx'
 import EditProfileModal from '../../components/customer/modals/EditProfileModal.jsx'
 import { useCustomerProfile } from '../../context/CustomerProfileContext.jsx'
 import { useToast } from '../../context/ToastContext.jsx'
-
-const devices = [
-  { id: 2, label: 'iPhone 14 Pro', location: 'Makati City, Philippines • Yesterday, 4:21 PM', icon: Smartphone, current: false },
-  { id: 1, label: 'Chrome on macOS Monterey', location: 'Quezon City, Philippines • 2 mins ago', icon: Laptop, current: true },
-]
+import { customerOrders, orderSteps } from '../../data/customerMockData.js'
 
 export default function CustomerProfile() {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const { profile, openEditProfile, showEditProfile, closeEditProfile } = useCustomerProfile()
-  const [twoFactor, setTwoFactor] = useState(true)
-  const [showLogout, setShowLogout] = useState(false)
 
-  const handleConfirmLogout = () => {
-    setShowLogout(false)
-    showToast('You have been logged out.', 'info')
-    navigate('/customer/login')
-  }
+  const totalOrders = customerOrders.length
+  const completedOrders = customerOrders.filter((o) => o.currentStep >= orderSteps.length - 1).length
+  const pendingOrders = totalOrders - completedOrders
+  const cancelledOrders = 2
+  const totalSpending = customerOrders.reduce(
+    (sum, o) => sum + o.items.reduce((itemSum, it) => itemSum + it.price, 0) + (o.expressFee || 0),
+    0,
+  )
+
+  const recentItems = customerOrders.slice(0, 3).map((o) => ({
+    orderId: o.id,
+    name: o.items[0]?.name,
+    qty: o.items[0]?.qty,
+    total: o.items.reduce((sum, item) => sum + item.price, 0) + (o.expressFee || 0),
+    status: o.currentStep >= orderSteps.length - 1 ? 'Delivered' : orderSteps[o.currentStep],
+  }))
+
+  const profileStats = [
+    { label: 'Total Orders', value: String(totalOrders) },
+    { label: 'Cancelled', value: String(cancelledOrders) },
+    { label: 'Pending', value: String(pendingOrders) },
+    { label: 'Total Spending', value: `$${totalSpending.toFixed(2)}` },
+  ]
 
   return (
-    <CustomerLayout>
-      <button className="icon-btn mb-16" onClick={() => navigate(-1)} style={{ border: 'none' }}>
-        <ArrowLeft />
-      </button>
-
-      <div className="card card-pad mb-20">
-        <div className="flex-between" style={{ flexWrap: 'wrap', gap: 16 }}>
-          <div className="flex-row gap-12">
-            <img
-              src={profile.avatar}
-              alt={profile.name}
-              style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover' }}
-            />
-            <div>
-              <div className="flex-row gap-8">
-                <span className="cell-primary" style={{ fontSize: 17 }}>{profile.name}</span>
-                <span className="badge badge-neutral">c-001</span>
-              </div>
-              <div className="cell-sub" style={{ marginBottom: 6 }}>Member since: 2024-01-10</div>
-              <span className="badge badge-info">{profile.role}</span>
-            </div>
-          </div>
-          <div className="flex-row gap-8">
-            <button className="btn btn-outline btn-sm" onClick={() => showToast('Opening email client…', 'info')}>
-              <Mail size={14} /> Contact
+    <CustomerLayout showTopNav={false} showHeaderNewOrder={false}>
+      <div className="customer-profile-shell">
+        <div className="customer-profile-topbar">
+          <div className="customer-profile-brand">MJ Prints</div>
+          <div className="customer-profile-topbar-actions">
+            <button className="customer-profile-link-btn">Orders</button>
+            <button className="icon-btn" title="Notifications" onClick={() => navigate('/customer/notifications')}>
+              <Bell />
             </button>
-            <button className="btn btn-outline btn-sm" onClick={() => setShowLogout(true)}>
-              <ArrowLeft size={14} /> Log Out
-            </button>
-            <button className="btn btn-primary btn-sm" onClick={openEditProfile}>
-              <Pencil size={14} /> Edit Profile
+            <button className="icon-btn" title="Settings" onClick={() => navigate('/customer/settings')}>
+              <Settings />
             </button>
           </div>
         </div>
-      </div>
 
-      <div className="card card-pad mb-20">
-        <div className="flex-row gap-10 mb-16">
-          <ShieldCheck size={16} />
-          <span className="section-title">Security</span>
-        </div>
+        <div className="customer-profile-toolbar">
+          <button className="customer-profile-back" onClick={() => navigate(-1)} aria-label="Go back">
+            <ArrowLeft size={18} />
+          </button>
 
-        <div className="flex-between" style={{ padding: '12px 14px', background: '#F6F8FA', borderRadius: 'var(--radius-sm)', marginBottom: 16 }}>
-          <div>
-            <div className="cell-primary" style={{ fontSize: 13 }}>Two-Factor Authentication</div>
-            <div className="cell-sub">Add an extra layer of security to your account.</div>
-          </div>
-          <button
-            onClick={() => setTwoFactor((v) => !v)}
-            style={{
-              width: 42, height: 24, borderRadius: 999, border: 'none', cursor: 'pointer',
-              background: twoFactor ? 'var(--color-primary)' : 'var(--color-border)', position: 'relative', flexShrink: 0,
-            }}
-          >
-            <span style={{
-              position: 'absolute', top: 3, left: twoFactor ? 21 : 3, width: 18, height: 18,
-              borderRadius: '50%', background: '#fff', transition: 'left 0.15s ease',
-            }}
-            />
+          <button className="customer-profile-logout" onClick={() => showToast('You have been logged out.', 'info')}>
+            <LogOut size={14} /> Logout
           </button>
         </div>
 
-        <div className="section-sub mb-16" style={{ fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Recent Login Activity</div>
-        {devices.map((d) => (
-          <div key={d.id} className="flex-between" style={{ padding: '10px 4px', borderBottom: '1px solid #EFEFEF' }}>
-            <div className="flex-row gap-10">
-              <span className="stat-icon"><d.icon size={15} /></span>
-              <div>
-                <div className="cell-primary" style={{ fontSize: 13 }}>{d.label}</div>
-                <div className="cell-sub">{d.location}</div>
+        <div className="customer-profile-overview">
+          <div className="customer-profile-summary-card">
+            <div className="customer-profile-summary-main">
+              <img src={profile.avatar} alt={profile.name} className="customer-profile-avatar" />
+              <div className="customer-profile-meta">
+                <div className="customer-profile-name-row">
+                  <h2>{profile.name}</h2>
+                  <span className="badge badge-neutral">c-001</span>
+                </div>
+                <p className="customer-profile-note">Premium Client since October 2023</p>
+                <div className="customer-profile-badges">
+                  <span className="badge badge-info">{profile.role}</span>
+                  <span className="badge badge-neutral">Free Shipping Active</span>
+                </div>
               </div>
             </div>
-            {d.current ? (
-              <span className="badge badge-success">Current</span>
-            ) : (
-              <button className="link-btn" style={{ color: 'var(--color-danger)' }} onClick={() => showToast(`Logged out ${d.label}`, 'success')}>
-                Log out
+
+            <div className="customer-profile-summary-actions">
+              <button className="btn btn-primary btn-sm" onClick={() => showToast('Opening contact options…', 'info')}>
+                <Mail size={14} /> Contact
               </button>
-            )}
+              <button className="btn btn-primary btn-sm" onClick={openEditProfile}>
+                <Pencil size={14} /> Edit Profile
+              </button>
+            </div>
           </div>
-        ))}
 
-        <button className="link-btn" style={{ marginTop: 12 }} onClick={() => showToast('Opening device manager…', 'info')}>
-          Manage All Devices
-        </button>
-      </div>
+          <div className="customer-profile-stats">
+            {profileStats.map((stat) => (
+              <div key={stat.label} className="customer-profile-stat-card">
+                <div className="customer-profile-stat-label">{stat.label}</div>
+                <div className="customer-profile-stat-value">{stat.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button
-          className="btn"
-          style={{ background: 'var(--color-danger-bg)', color: 'var(--color-danger)' }}
-          onClick={() => setShowLogout(true)}
-        >
-          Logout
-        </button>
+        <div className="customer-profile-lower-grid">
+          <div className="card customer-profile-panel">
+            <div className="customer-profile-panel-header">
+              <span className="section-title">Personal Information</span>
+              <button className="btn btn-outline btn-sm" onClick={openEditProfile}><Pencil size={13} /> Update</button>
+            </div>
+
+            <div className="customer-profile-info-grid">
+              <div>
+                <div className="customer-profile-field-label">Full Name</div>
+                <div className="cell-primary customer-profile-field-value">{profile.name}</div>
+
+                <div className="customer-profile-field-label">Phone Number</div>
+                <div className="cell-primary customer-profile-field-value">{profile.phone}</div>
+              </div>
+
+              <div>
+                <div className="customer-profile-field-label">Email Address</div>
+                <div className="cell-primary customer-profile-field-value">{profile.email}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card customer-profile-panel">
+            <div className="customer-profile-panel-header">
+              <span className="section-title">Recently Ordered Items</span>
+              <ClipboardList size={16} />
+            </div>
+
+            <div className="customer-profile-order-list">
+              {recentItems.map((item) => (
+                <div className="customer-profile-order-item" key={item.orderId}>
+                  <div className="customer-profile-order-item-main">
+                    <div className="customer-profile-order-thumb">T</div>
+                    <div>
+                      <div className="customer-profile-order-name">{item.name}</div>
+                      <div className="customer-profile-order-meta">Qty: {item.qty}</div>
+                    </div>
+                  </div>
+
+                  <div className="customer-profile-order-side">
+                    <div className="customer-profile-order-price">${item.total.toFixed(2)}</div>
+                    <span className={`badge ${item.status === 'Delivered' ? 'badge-success' : 'badge-info'}`}>
+                      {item.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="customer-profile-order-link-wrap">
+              <Link to="/customer/my-orders" className="link-btn">View All Order History</Link>
+            </div>
+          </div>
+        </div>
       </div>
 
       {showEditProfile && <EditProfileModal onClose={closeEditProfile} />}
-      {showLogout && (
-        <ConfirmModal
-          title="Log Out"
-          message="Are you sure you want to log out of your account?"
-          confirmLabel="Log Out"
-          cancelLabel="Cancel"
-          onCancel={() => setShowLogout(false)}
-          onConfirm={handleConfirmLogout}
-        />
-      )}
     </CustomerLayout>
   )
 }

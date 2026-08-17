@@ -164,16 +164,17 @@ export default function Customers() {
                     <span className={`badge ${c.status === 'Active' ? 'badge-success' : 'badge-neutral'}`}>{c.status}</span>
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
-                    <div className="flex-row gap-8">
-                      <button className="btn btn-outline btn-sm" onClick={() => setEditCustomer(c)}><Pencil size={13} /> Edit</button>
+                    <div className="flex-row gap-8 row-actions-cell">
                       <ActionMenu
                         items={[
                           { label: 'View Details', icon: Users, onClick: () => setViewCustomer(c) },
+                          { label: 'Edit Customer', icon: Pencil, onClick: () => setEditCustomer(c) },
                           c.status === 'Active'
                             ? { label: 'Block Customer', icon: Ban, danger: true, onClick: () => toggleBlock(c) }
                             : { label: 'Unblock Customer', icon: CheckCircle2, onClick: () => toggleBlock(c) },
                         ]}
                       />
+                      <button className="btn btn-outline btn-sm row-quick-edit" onClick={() => setEditCustomer(c)}><Pencil size={13} /> Edit</button>
                     </div>
                   </td>
                 </tr>

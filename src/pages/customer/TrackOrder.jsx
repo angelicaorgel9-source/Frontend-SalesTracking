@@ -1,13 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import {
-  Check, Palette, Printer, Package, PackageCheck, Download, Share2, ListOrdered, Search,
+  Check, Palette, Printer, Package, PackageCheck, Download, Share2, ListOrdered, Search, Pencil,
 } from 'lucide-react'
 import CustomerLayout from '../../layouts/CustomerLayout.jsx'
 import { customerOrders, orderSteps } from '../../data/customerMockData.js'
 import { useToast } from '../../context/ToastContext.jsx'
 
 const stepIcons = [Check, Palette, Printer, Package, PackageCheck]
+
+function normalizeOrderId(value) {
+  return (value || '')
+    .trim()
+    .replace(/^#/, '')
+    .replace(/\s+/g, '')
+    .toUpperCase()
+}
 
 function statusLabel(order) {
   if (order.currentStep >= orderSteps.length - 1) return 'Completed'
@@ -23,7 +31,8 @@ export default function TrackOrder() {
   useEffect(() => {
     const id = searchParams.get('id')
     if (id) {
-      const found = customerOrders.find((o) => o.id.toLowerCase() === id.toLowerCase())
+      const normalizedId = normalizeOrderId(id)
+      const found = customerOrders.find((o) => normalizeOrderId(o.id) === normalizedId)
       if (found) {
         setOrder(found)
         setInput(found.id)
@@ -38,18 +47,31 @@ export default function TrackOrder() {
   }, [searchParams])
 
   const handleTrack = () => {
-    if (!input.trim()) {
+    const trimmedInput = input.trim()
+    if (!trimmedInput) {
       showToast('Please enter a transaction ID to track.', 'error')
       return
     }
-    setSearchParams({ id: input.trim() })
+
+    const normalized = normalizeOrderId(trimmedInput)
+    const found = customerOrders.find((o) => normalizeOrderId(o.id) === normalized)
+
+    if (!found) {
+      showToast(`No order found for "${trimmedInput}".`, 'error')
+      setOrder(null)
+      return
+    }
+
+    setOrder(found)
+    setInput(found.id)
+    setSearchParams({ id: found.id })
   }
 
   const subtotal = order ? order.items.reduce((sum, it) => sum + it.price, 0) : 0
   const total = order ? subtotal + (order.expressFee || 0) : 0
 
   return (
-    <CustomerLayout>
+    <CustomerLayout showHeaderNewOrder={false} showFooterNewOrder>
       <div className="flex-between mb-16" style={{ flexWrap: 'wrap', gap: 10 }}>
         <h1 className="page-title" style={{ marginBottom: 0 }}>Track Your Order</h1>
         <Link to="/customer/my-orders" className="link-btn flex-row gap-8">
@@ -83,6 +105,9 @@ export default function TrackOrder() {
               </div>
             </div>
             <div className="flex-row gap-8">
+              <button className="btn btn-outline btn-sm" onClick={() => showToast('Opening edit order options…', 'info')}>
+                <Pencil size={14} /> Edit
+              </button>
               <button className="btn btn-outline btn-sm" onClick={() => showToast('Downloading invoice…', 'info')}>
                 <Download size={14} /> Invoice
               </button>
@@ -124,32 +149,45 @@ export default function TrackOrder() {
             </div>
 
             <div>
-              <div className="card card-pad mb-16">
-                <div className="section-title mb-16">Order Summary</div>
-                {order.items.map((item) => (
-                  <div key={item.name} className="flex-between mb-16" style={{ alignItems: 'flex-start' }}>
-                    <div>
-                      <div className="cell-primary" style={{ fontSize: 13 }}>{item.name}</div>
-                      <div className="cell-sub">{item.qty}</div>
-                    </div>
-                    <span className="cell-primary" style={{ color: 'var(--color-primary)', fontSize: 13 }}>
-                      ${item.price.toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-                <div className="flex-between mb-16" style={{ fontSize: 12.5, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
-                  <span className="text-secondary">Subtotal</span>
-                  <span className="cell-primary">${subtotal.toFixed(2)}</span>
+              <div className="card mb-16">
+                <div className="card-pad" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                  <span className="section-title">Order Summary</span>
                 </div>
-                {order.expressFee > 0 && (
+                <div className="table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {order.items.map((item) => (
+                        <tr key={item.name}>
+                          <td className="cell-primary">{item.name}</td>
+                          <td className="text-secondary">{item.qty}</td>
+                          <td className="cell-primary" style={{ color: 'var(--color-primary)' }}>${item.price.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="card-pad">
                   <div className="flex-between mb-16" style={{ fontSize: 12.5 }}>
-                    <span className="text-secondary">Express Processing</span>
-                    <span className="cell-primary">${order.expressFee.toFixed(2)}</span>
+                    <span className="text-secondary">Subtotal</span>
+                    <span className="cell-primary">${subtotal.toFixed(2)}</span>
                   </div>
-                )}
-                <div className="flex-between" style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
-                  <span className="cell-primary">Total</span>
-                  <span className="cell-primary" style={{ color: 'var(--color-primary)', fontSize: 16 }}>${total.toFixed(2)}</span>
+                  {order.expressFee > 0 && (
+                    <div className="flex-between mb-16" style={{ fontSize: 12.5 }}>
+                      <span className="text-secondary">Express Processing</span>
+                      <span className="cell-primary">${order.expressFee.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex-between" style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                    <span className="cell-primary">Total</span>
+                    <span className="cell-primary" style={{ color: 'var(--color-primary)', fontSize: 16 }}>${total.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
 

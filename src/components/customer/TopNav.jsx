@@ -11,7 +11,7 @@ const navLinks = [
   { to: '/customer/products-services', label: 'Products and Services' },
 ]
 
-export default function TopNav({ hasUnread = false, onNewOrder = () => {} }) {
+export default function TopNav({ hasUnread = false, onNewOrder = () => {}, showNewOrderButton = true }) {
   const navigate = useNavigate()
   const { profile } = useCustomerProfile()
 
@@ -44,9 +44,11 @@ export default function TopNav({ hasUnread = false, onNewOrder = () => {} }) {
       </nav>
 
       <div className="customer-topnav-right">
-        <button className="btn btn-primary btn-sm" onClick={onNewOrder}>
-          <Plus size={14} /> New Order
-        </button>
+        {showNewOrderButton && (
+          <button className="btn btn-primary btn-sm" onClick={onNewOrder}>
+            <Plus size={14} /> New Order
+          </button>
+        )}
         <button className="icon-btn" title="Notifications" onClick={() => navigate('/customer/notifications')}>
           <Bell />
           {hasUnread && <span className="dot" />}

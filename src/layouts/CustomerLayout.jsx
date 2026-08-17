@@ -7,7 +7,13 @@ import { useToast } from '../context/ToastContext.jsx'
 import { customerNotifications } from '../data/customerMockData.js'
 import { useState } from 'react'
 
-export default function CustomerLayout({ children, contentClassName = '' }) {
+export default function CustomerLayout({
+  children,
+  contentClassName = '',
+  showHeaderNewOrder = true,
+  showFooterNewOrder = false,
+  showTopNav = true,
+}) {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const { showEditProfile, closeEditProfile } = useCustomerProfile()
@@ -22,17 +28,24 @@ export default function CustomerLayout({ children, contentClassName = '' }) {
 
   return (
     <div className="customer-shell">
-      <TopNav hasUnread={hasUnread} onNewOrder={() => setShowNewOrder(true)} />
+      {showTopNav && <TopNav hasUnread={hasUnread} onNewOrder={() => setShowNewOrder(true)} showNewOrderButton={showHeaderNewOrder} />}
       <div className={`customer-content ${contentClassName}`}>{children}</div>
 
       <footer className="customer-footer">
         <div className="customer-footer-brand">MJ Prints</div>
-        <div className="customer-footer-copy">© 2024 MJ Prints Advertising. All rights reserved.</div>
+
         <div className="customer-footer-links">
-          <span className="link-btn" onClick={() => showToast('Opening Contact Us…', 'info')}>Contact Us</span>
-          <span className="link-btn" onClick={() => showToast('Opening Terms of Service…', 'info')}>Terms of Service</span>
-          <span className="link-btn" onClick={() => showToast('Opening Privacy Policy…', 'info')}>Privacy Policy</span>
+          <span className="link-btn" onClick={() => navigate('/customer/home')}>Home</span>
+          <span className="link-btn" onClick={() => navigate('/customer/my-orders')}>My Orders</span>
+          <span className="link-btn" onClick={() => navigate('/customer/track-order')}>Track Order</span>
+          <span className="link-btn" onClick={() => navigate('/customer/products-services')}>Products and Services</span>
         </div>
+
+        {showFooterNewOrder && (
+          <button className="btn btn-primary btn-sm" onClick={() => setShowNewOrder(true)}>
+            New Order
+          </button>
+        )}
       </footer>
 
       {showNewOrder && <NewOrderModal onClose={() => setShowNewOrder(false)} onSave={handleSaveOrder} />}
