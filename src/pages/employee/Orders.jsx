@@ -181,6 +181,7 @@ export default function Orders() {
           <button className="chip-filter active" onClick={() => setShowFiltersDropdown((v) => !v)}>
             Filters <ChevronDown size={13} style={{ marginLeft: 4 }} />
           </button>
+<<<<<<< HEAD
           <select
             className={`chip-filter chip-filter-select${statusFilter !== statusOptions[0] ? ' active' : ''}`}
             value={statusFilter}
@@ -205,6 +206,17 @@ export default function Orders() {
           >
             {dateOptions.map((date) => <option key={date} value={date}>{date}</option>)}
           </select>
+=======
+          <button className={`chip-filter${statusFilter !== statusOptions[0] ? ' active' : ''}`}>
+            {statusFilter}
+          </button>
+          <button className={`chip-filter${branchFilter !== branchOptions[0] ? ' active' : ''}`}>
+            {branchFilter}
+          </button>
+          <button className={`chip-filter${dateFilter !== dateOptions[0] ? ' active' : ''}`}>
+            {dateFilter}
+          </button>
+>>>>>>> 6417aaceb191e3ea6c41dbd0862ee82eb9cea24b
           {(statFilter || statusFilter !== statusOptions[0] || branchFilter !== branchOptions[0] || dateFilter !== dateOptions[0]) && (
             <button className="chip-filter" style={{ color: 'var(--color-primary)' }} onClick={() => {
               setStatFilter(null)

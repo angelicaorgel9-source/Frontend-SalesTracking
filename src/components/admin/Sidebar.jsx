@@ -26,25 +26,41 @@ export default function Sidebar({ open, collapsed = false, setCollapsed = () => 
   const navigate = useNavigate()
   return (
     <aside className={`sidebar${open ? ' open' : ''}${collapsed ? ' collapsed' : ''}`}>
+<<<<<<< HEAD
       <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', width: '100%', padding: collapsed ? '14px 8px' : '18px 20px' }}>
         {!collapsed && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <img src={logo} alt="MJ Prints" style={{ height: 28 }} />
+=======
+      <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'space-between' : 'space-between', width: '100%', padding: collapsed ? '10px 12px' : '18px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <img src={logo} alt="MJ Prints" style={{ height: 28 }} />
+          {!collapsed && (
+>>>>>>> 6417aaceb191e3ea6c41dbd0862ee82eb9cea24b
             <div className="sidebar-brand-text">
               <strong>MJ Prints</strong>
               <span>Admin Portal</span>
             </div>
+<<<<<<< HEAD
           </div>
         )}
+=======
+          )}
+        </div>
+>>>>>>> 6417aaceb191e3ea6c41dbd0862ee82eb9cea24b
         <button
           className="icon-btn"
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           onClick={() => setCollapsed((v) => !v)}
+<<<<<<< HEAD
           style={{
             border: collapsed ? '1px solid var(--color-border)' : 'none',
             background: collapsed ? '#fff' : 'transparent',
             marginLeft: collapsed ? 0 : 'auto',
           }}
+=======
+          style={{ border: 'none', marginLeft: 'auto' }}
+>>>>>>> 6417aaceb191e3ea6c41dbd0862ee82eb9cea24b
         >
           {collapsed ? <ChevronRight /> : <ChevronLeft />}
         </button>
