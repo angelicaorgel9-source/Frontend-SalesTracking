@@ -89,22 +89,12 @@ export default function Analytics() {
             <span className="flex-row gap-8 section-sub"><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-secondary)', display: 'inline-block' }} /> Projected</span>
           </div>
         </div>
-<<<<<<< HEAD
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 28, height: 160 }}>
           {revenueTrend.map((d) => (
             <div key={d.month} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
               <div
                 style={{
                   width: 64,
-=======
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, height: 160 }}>
-          {revenueTrend.map((d) => (
-            <div key={d.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-              <div
-                style={{
-                  width: '100%',
-                  maxWidth: 48,
->>>>>>> 6417aaceb191e3ea6c41dbd0862ee82eb9cea24b
                   height: `${(d.value / maxVal) * 130}px`,
                   borderRadius: 6,
                   background: 'var(--color-primary)',

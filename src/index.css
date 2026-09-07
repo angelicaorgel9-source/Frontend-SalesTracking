@@ -502,13 +502,8 @@ a {
 }
 
 .stat-icon {
-<<<<<<< HEAD
   width: 48px;
   height: 48px;
-=======
-  width: 34px;
-  height: 34px;
->>>>>>> 6417aaceb191e3ea6c41dbd0862ee82eb9cea24b
   border-radius: 8px;
   background: var(--color-secondary);
   color: var(--color-primary-dark);
@@ -518,13 +513,8 @@ a {
 }
 
 .stat-icon svg {
-<<<<<<< HEAD
   width: 30px;
   height: 30px;
-=======
-  width: 18px;
-  height: 18px;
->>>>>>> 6417aaceb191e3ea6c41dbd0862ee82eb9cea24b
 }
 
 .stat-card-value {
@@ -696,7 +686,6 @@ table.data-table tbody tr:hover {
 
 .input-icon-wrap .toggle-visibility {
   position: absolute;
-<<<<<<< HEAD
   top: 50%;
   right: 12px;
   left: auto;
@@ -710,11 +699,6 @@ table.data-table tbody tr:hover {
   position: static;
   left: auto;
   transform: none;
-=======
-  right: 12px;
-  left: auto;
-  cursor: pointer;
->>>>>>> 6417aaceb191e3ea6c41dbd0862ee82eb9cea24b
 }
 
 /* ---------- Misc utility ---------- */
@@ -816,31 +800,21 @@ table.data-table tbody tr:hover {
 }
 
 .admin-dashboard-stats .admin-stat-fixed .stat-icon {
-<<<<<<< HEAD
   width: 42px;
   height: 42px;
   min-width: 42px;
   border-radius: 10px;
-=======
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  border-radius: 8px;
->>>>>>> 6417aaceb191e3ea6c41dbd0862ee82eb9cea24b
   margin-left: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-<<<<<<< HEAD
 .admin-dashboard-stats .admin-stat-fixed .stat-icon svg {
   width: 35px;
   height: 35px;
 }
 
-=======
->>>>>>> 6417aaceb191e3ea6c41dbd0862ee82eb9cea24b
 .admin-dashboard-stats .admin-stat-fixed .stat-card-value {
   line-height: 1.1;
   margin: 0;
@@ -879,7 +853,6 @@ table.data-table tbody tr:hover {
   cursor: pointer;
 }
 
-<<<<<<< HEAD
 .chip-filter-select {
   appearance: auto;
   border: 1px solid var(--color-border);
@@ -894,8 +867,6 @@ table.data-table tbody tr:hover {
   color: var(--color-primary-dark);
 }
 
-=======
->>>>>>> 6417aaceb191e3ea6c41dbd0862ee82eb9cea24b
 .filter-dropdown {
   box-shadow: var(--shadow-card);
   background: var(--color-background);
