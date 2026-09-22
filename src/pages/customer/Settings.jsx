@@ -1,16 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, User, MapPin, CreditCard, Plus, Pencil, Trash2, ShieldCheck, Download, Laptop, Smartphone,
 } from 'lucide-react'
 import CustomerLayout from '../../layouts/CustomerLayout.jsx'
 import ChangePasswordModal from '../../components/customer/modals/ChangePasswordModal.jsx'
+import AddAddressModal from '../../components/customer/modals/AddAddressModal.jsx'
 import ConfirmModal from '../../components/ConfirmModal.jsx'
 import { useCustomerProfile } from '../../context/CustomerProfileContext.jsx'
 import { useToast } from '../../context/ToastContext.jsx'
-import { customerAddresses, customerPaymentMethods, customerDevices } from '../../data/customerMockData.js'
-
-const deviceIcon = { Laptop, Smartphone }
+import { api } from '../../utils/api.js'
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -22,12 +21,29 @@ export default function Settings() {
   const [phone, setPhone] = useState(profile.phone)
   const [dirty, setDirty] = useState(false)
 
-  const [twoFactor, setTwoFactor] = useState(true)
+  const [twoFactor, setTwoFactor] = useState(profile.two_factor_enabled !== false)
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showAddAddress, setShowAddAddress] = useState(false)
 
-  const [addresses] = useState(customerAddresses)
-  const [payments] = useState(customerPaymentMethods)
+  const [addresses, setAddresses] = useState([])
+  const [payments] = useState([])
+  const customerDevices = []
+
+  useEffect(() => {
+    api.getAddresses().then(setAddresses).catch(() => setAddresses([]))
+  }, [])
+
+  const handleAddAddress = async (address) => {
+    try {
+      const savedAddress = await api.createAddress(address)
+      setAddresses((current) => [...current, savedAddress])
+      setShowAddAddress(false)
+      showToast('Address saved successfully.', 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
+  }
 
   const handleField = (setter) => (e) => {
     setter(e.target.value)
@@ -98,7 +114,12 @@ export default function Settings() {
                 <div className="cell-sub">Add an extra layer of security to your account.</div>
               </div>
               <button
-                onClick={() => setTwoFactor((v) => !v)}
+                onClick={() => {
+                  const nextValue = !twoFactor
+                  setTwoFactor(nextValue)
+                  updateProfile({ two_factor_enabled: nextValue })
+                  showToast(`Two-factor authentication ${nextValue ? 'enabled' : 'disabled'}.`, 'success')
+                }}
                 style={{
                   width: 42, height: 24, borderRadius: 999, border: 'none', cursor: 'pointer',
                   background: twoFactor ? 'var(--color-primary)' : 'var(--color-border)', position: 'relative', flexShrink: 0,
@@ -147,10 +168,11 @@ export default function Settings() {
                 <MapPin size={16} />
                 <span className="section-title">Address Management</span>
               </div>
-              <button className="btn btn-primary btn-sm" onClick={() => showToast('Add Address form coming soon.', 'info')}>
+              <button className="btn btn-primary btn-sm" onClick={() => setShowAddAddress(true)}>
                 <Plus size={13} /> Add Address
               </button>
             </div>
+            {!addresses.length && <div className="section-sub" style={{ padding: '8px 0 18px' }}>No saved addresses yet.</div>}
             {addresses.map((a) => (
               <div key={a.id} className="card card-pad mb-16" style={{ padding: 14 }}>
                 <div className="flex-between" style={{ alignItems: 'flex-start' }}>
@@ -217,6 +239,7 @@ export default function Settings() {
       </div>
 
       {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
+      {showAddAddress && <AddAddressModal onClose={() => setShowAddAddress(false)} onSave={handleAddAddress} />}
       {showDeleteConfirm && (
         <ConfirmModal
           title="Delete Account"

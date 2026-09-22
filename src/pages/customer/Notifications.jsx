@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ShoppingCart, CreditCard, Sparkles, Megaphone, Trash2, CheckCheck } from 'lucide-react'
 import CustomerLayout from '../../layouts/CustomerLayout.jsx'
-import { customerNotifications as seedNotifications } from '../../data/customerMockData.js'
 import { useToast } from '../../context/ToastContext.jsx'
+import { api } from '../../utils/api.js'
 
 const tabs = ['All', 'Orders', 'Payments', 'Promotions', 'Announcements']
 
@@ -14,15 +15,21 @@ const categoryIcon = {
 }
 
 export default function Notifications() {
+  const navigate = useNavigate()
   const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState('All')
-  const [items, setItems] = useState(seedNotifications)
+  const [items, setItems] = useState([])
+
+  useEffect(() => {
+    api.getCustomerNotifications().then(setItems).catch(() => setItems([]))
+  }, [])
 
   const filtered = activeTab === 'All' ? items : items.filter((n) => n.category === activeTab)
   const unreadCount = items.filter((n) => n.unread).length
 
   const markAllRead = () => {
     setItems((prev) => prev.map((n) => ({ ...n, unread: false })))
+    api.markCustomerNotificationsRead().catch(() => {})
     showToast('All notifications marked as read', 'success')
   }
 
@@ -30,8 +37,11 @@ export default function Notifications() {
     setItems((prev) => prev.filter((n) => n.id !== id))
   }
 
-  const openItem = (id) => {
-    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)))
+  const openItem = (notification) => {
+    setItems((prev) => prev.map((n) => (n.id === notification.id ? { ...n, unread: false } : n)))
+    if (notification.orderId) {
+      navigate(`/customer/track-order?id=${encodeURIComponent(notification.orderId)}`)
+    }
   }
 
   return (
@@ -78,7 +88,7 @@ export default function Notifications() {
                 </div>
                 <div className="notif-desc">{n.desc}</div>
                 <div className="notif-actions">
-                  <button className="link-btn" onClick={() => openItem(n.id)}>{n.action}</button>
+                  <button className="link-btn" onClick={() => openItem(n)}>{n.action}</button>
                 </div>
               </div>
               <button className="notif-delete" onClick={() => removeItem(n.id)}>

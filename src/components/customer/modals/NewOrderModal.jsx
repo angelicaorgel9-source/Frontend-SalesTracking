@@ -11,7 +11,7 @@ const paymentMethods = [
   { key: 'Bank Transfer', icon: Landmark },
 ]
 
-export default function NewOrderModal({ onClose, onSave, initialProduct = null }) {
+export default function NewOrderModal({ onClose, onSave, initialProduct = null, products = customerProducts }) {
   const { profile } = useCustomerProfile()
   const [customer, setCustomer] = useState({
     name: profile.name || '',
@@ -19,30 +19,42 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null }
     email: profile.email || '',
     address: '',
   })
-  const [productId, setProductId] = useState(initialProduct?.id || customerProducts[0].id)
-  const product = customerProducts.find((p) => p.id === productId) || customerProducts[0]
+  const [productId, setProductId] = useState(initialProduct?.id || products[0]?.id)
+  const product = products.find((p) => String(p.id) === String(productId)) || products[0]
   const [size, setSize] = useState(product.sizes[0])
+  const [customSize, setCustomSize] = useState('')
   const [material, setMaterial] = useState(product.materials[0])
   const [quantity, setQuantity] = useState(10)
   const [payment, setPayment] = useState('GCash')
   const [notes, setNotes] = useState('')
+  const [designFile, setDesignFile] = useState(null)
 
   const handleProductChange = (id) => {
-    const next = customerProducts.find((p) => p.id === id) || customerProducts[0]
+    const next = products.find((p) => String(p.id) === String(id)) || products[0]
     setProductId(id)
     setSize(next.sizes[0])
+    setCustomSize('')
     setMaterial(next.materials[0])
   }
 
   const base = product.price * quantity
   const discount = quantity >= 100 ? Math.round(base * 0.05) : 0
-  const delivery = 150
+  const delivery = 100
   const total = base - discount + delivery
 
   const handleSubmit = () => {
     if (!customer.name.trim() || !customer.address.trim()) return
+    if (size === 'Custom' && !customSize.trim()) return
     onSave({
-      product, size, material, quantity, payment, notes, customer, total,
+      product,
+      size: size === 'Custom' ? customSize.trim() : size,
+      material,
+      quantity,
+      payment,
+      notes,
+      customer,
+      total,
+      designFile,
     })
   }
 
@@ -85,7 +97,7 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null }
           <div className="field">
             <label>Product</label>
             <select className="input" value={productId} onChange={(e) => handleProductChange(e.target.value)}>
-              {customerProducts.map((p) => (
+              {products.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
@@ -97,6 +109,15 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null }
               <select className="input" value={size} onChange={(e) => setSize(e.target.value)}>
                 {product.sizes.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
+              {size === 'Custom' && (
+                <input
+                  className="input"
+                  style={{ marginTop: 8 }}
+                  placeholder="Enter custom size (e.g., 4ft x 8ft)"
+                  value={customSize}
+                  onChange={(e) => setCustomSize(e.target.value)}
+                />
+              )}
             </div>
             <div className="field">
               <label>Material / Finish</label>
@@ -131,7 +152,21 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null }
               <UploadCloud style={{ margin: '0 auto 6px', display: 'block' }} size={22} />
               Drag and drop your design files here
               <div className="section-sub" style={{ margin: '4px 0 10px' }}>Supports PNG, SVG, AI, PSD (Max 25MB)</div>
-              <button type="button" className="btn btn-outline btn-sm">Browse Files</button>
+              <input
+                id="design-file"
+                type="file"
+                accept=".png,.svg,.ai,.psd"
+                style={{ display: 'none' }}
+                onChange={(e) => setDesignFile(e.target.files?.[0] || null)}
+              />
+              <label htmlFor="design-file" className="btn btn-outline btn-sm" style={{ display: 'inline-flex', cursor: 'pointer' }}>
+                Browse Files
+              </label>
+              {designFile && (
+                <div className="section-sub" style={{ marginTop: 8 }}>
+                  Selected: {designFile.name}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -279,8 +279,8 @@ export default function Orders() {
         <div className="clickable" onClick={() => setStatFilter('pending')}>
           <StatCard icon={UserCheck} label="Pending Proofs" value="28" sub="Critical attention needed" subDirection="down" />
         </div>
-        <div className="clickable" onClick={() => showToast('Daily revenue: $12,450.80', 'info')}>
-          <StatCard icon={DollarSign} label="Revenue (Daily)" value="$12,450.80" />
+        <div className="clickable" onClick={() => showToast('Daily revenue: ₱12,450.80', 'info')}>
+          <StatCard icon={DollarSign} label="Revenue (Daily)" value="₱12,450.80" />
         </div>
       </div>
 

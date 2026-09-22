@@ -4,8 +4,8 @@ import NewOrderModal from '../components/customer/modals/NewOrderModal.jsx'
 import EditProfileModal from '../components/customer/modals/EditProfileModal.jsx'
 import { useCustomerProfile } from '../context/CustomerProfileContext.jsx'
 import { useToast } from '../context/ToastContext.jsx'
-import { customerNotifications } from '../data/customerMockData.js'
-import { useState } from 'react'
+import { api } from '../utils/api.js'
+import { useEffect, useState } from 'react'
 
 export default function CustomerLayout({
   children,
@@ -18,7 +18,13 @@ export default function CustomerLayout({
   const { showToast } = useToast()
   const { showEditProfile, closeEditProfile } = useCustomerProfile()
   const [showNewOrder, setShowNewOrder] = useState(false)
-  const hasUnread = customerNotifications.some((n) => n.unread)
+  const [hasUnread, setHasUnread] = useState(false)
+
+  useEffect(() => {
+    api.getCustomerNotifications()
+      .then((notifications) => setHasUnread(notifications.some((notification) => notification.unread)))
+      .catch(() => setHasUnread(false))
+  }, [])
 
   const handleSaveOrder = (order) => {
     setShowNewOrder(false)

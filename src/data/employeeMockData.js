@@ -19,10 +19,10 @@ export const customerRegistry = [
 ]
 
 export const orders = [
-  { id: 'ORD-2023-8902', minutesAgo: '2 mins ago', customer: 'Global Logistics Co.', initials: 'GL', email: 'sarah@globallog.com', project: 'Vinyl Banners', details: '(500 units) High Gloss, 13oz Heavy Duty', branch: 'Baliuag', status: 'Pending Proof', statusType: 'warning', value: '$4,250.00' },
-  { id: 'ORD-2023-8899', minutesAgo: '1 hour ago', customer: 'Metro Kitchens', initials: 'MK', email: 'billing@metrokitchens.io', project: 'Business Cards (2k)', details: '32pt Silk Touch, Gold Foil', branch: 'Tangos-Baliuag', status: 'Printing', statusType: 'danger', value: '$890.00' },
-  { id: 'ORD-2023-8894', minutesAgo: '4 hours ago', customer: 'Apex Studios', initials: 'AS', email: 'jason@apex.design', project: 'Acrylic Lobby Signage', details: 'Standoff Mount, Backlit LED', branch: 'Piel', status: 'Completed', statusType: 'success', value: '$1,850.50' },
-  { id: 'ORD-2023-8560', minutesAgo: 'Yesterday', customer: 'Urban Realty', initials: 'UR', email: 'info@urban.com', project: 'Yard Signs (50 units)', details: 'Double-sided, H-Stakes', branch: 'Baliuag', status: 'Shipped', statusType: 'neutral', value: '$650.00' },
+  { id: 'ORD-2023-8902', minutesAgo: '2 mins ago', customer: 'Global Logistics Co.', initials: 'GL', email: 'sarah@globallog.com', project: 'Vinyl Banners', details: '(500 units) High Gloss, 13oz Heavy Duty', branch: 'Baliuag', status: 'Pending Proof', statusType: 'warning', value: '₱4,250.00' },
+  { id: 'ORD-2023-8899', minutesAgo: '1 hour ago', customer: 'Metro Kitchens', initials: 'MK', email: 'billing@metrokitchens.io', project: 'Business Cards (2k)', details: '32pt Silk Touch, Gold Foil', branch: 'Tangos-Baliuag', status: 'Printing', statusType: 'danger', value: '₱890.00' },
+  { id: 'ORD-2023-8894', minutesAgo: '4 hours ago', customer: 'Apex Studios', initials: 'AS', email: 'jason@apex.design', project: 'Acrylic Lobby Signage', details: 'Standoff Mount, Backlit LED', branch: 'Piel', status: 'Completed', statusType: 'success', value: '₱1,850.50' },
+  { id: 'ORD-2023-8560', minutesAgo: 'Yesterday', customer: 'Urban Realty', initials: 'UR', email: 'info@urban.com', project: 'Yard Signs (50 units)', details: 'Double-sided, H-Stakes', branch: 'Baliuag', status: 'Shipped', statusType: 'neutral', value: '₱650.00' },
 ]
 
 export const inventoryItems = [
@@ -52,10 +52,10 @@ export const customerGrowthTrend = [
 ]
 
 export const branchPerformance = [
-  { branch: 'Poblacion', volume: '482 orders', revenue: '$52,400.00', efficiency: '98.2%', status: 'Active', trend: '4.2%', trendDir: 'up' },
-  { branch: 'Branch 2', volume: '312 orders', revenue: '$38,150.00', efficiency: '92.5%', status: 'Active', trend: '1.8%', trendDir: 'up' },
-  { branch: 'Branch 3', volume: '254 orders', revenue: '$28,900.00', efficiency: '88.4%', status: 'Active', trend: '0.5%', trendDir: 'down' },
-  { branch: 'Branch 4', volume: '236 orders', revenue: '$23,400.00', efficiency: '94.1%', status: 'Active', trend: '8.4%', trendDir: 'up' },
+  { branch: 'Poblacion', volume: '482 orders', revenue: '₱52,400.00', efficiency: '98.2%', status: 'Active', trend: '4.2%', trendDir: 'up' },
+  { branch: 'Branch 2', volume: '312 orders', revenue: '₱38,150.00', efficiency: '92.5%', status: 'Active', trend: '1.8%', trendDir: 'up' },
+  { branch: 'Branch 3', volume: '254 orders', revenue: '₱28,900.00', efficiency: '88.4%', status: 'Active', trend: '0.5%', trendDir: 'down' },
+  { branch: 'Branch 4', volume: '236 orders', revenue: '₱23,400.00', efficiency: '94.1%', status: 'Active', trend: '8.4%', trendDir: 'up' },
 ]
 
 export const branchProfiles = [
@@ -75,7 +75,7 @@ export const employeeUsers = [
 
 export const notifications = [
   { id: 1, category: 'Orders', type: 'success', title: 'Order #INF-8842 Ready for Pickup', desc: 'Your custom corporate apparel batch is ready. Please visit the main warehouse pickup desk with your confirmation code.', time: '10:42 AM', unread: true, action: 'View Details' },
-  { id: 2, category: 'Payments', type: 'info', title: 'Payment Confirmed for MJ-9921', desc: 'Payment of $1,420.00 for your bulk flyer order has been processed. Production of your items will begin within 24 hours.', time: 'Yesterday', unread: true, action: 'View Receipt' },
+  { id: 2, category: 'Payments', type: 'info', title: 'Payment Confirmed for MJ-9921', desc: 'Payment of ₱1,420.00 for your bulk flyer order has been processed. Production of your items will begin within 24 hours.', time: 'Yesterday', unread: true, action: 'View Receipt' },
   { id: 3, category: 'Promotions', type: 'success', title: 'New Discount Applied', desc: 'Great news! We\u2019ve added a 15% loyalty discount to your account for your next order. Valid for all digital printing services.', time: 'Oct 21, 2023', unread: false, action: 'Apply to Order' },
   { id: 4, category: 'Orders', type: 'warning', title: 'Production Started #INF-8842', desc: 'Your design has passed quality check and is now being printed. Estimated completion: Oct 26th.', time: 'Oct 22, 2023', unread: false, action: 'Track Progress' },
   { id: 5, category: 'Announcements', type: 'info', title: 'Scheduled Maintenance Notice', desc: 'The client portal will be briefly unavailable on Nov 1st, 12:00 AM \u2013 2:00 AM for scheduled maintenance.', time: 'Oct 18, 2023', unread: false, action: 'Learn More' },

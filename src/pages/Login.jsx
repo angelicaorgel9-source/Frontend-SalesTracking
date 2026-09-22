@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { User, Lock, Eye, EyeOff } from 'lucide-react'
 import logo from '../assets/logo.png'
 import ForgotPasswordModal from '../components/ForgotPasswordModal.jsx'
+import { api, saveSession } from '../utils/api.js'
 
 function getCustomerAccounts() {
   try {
@@ -23,6 +24,16 @@ function resolvePortal(username) {
   return 'customer'
 }
 
+function getDeviceId() {
+  const key = 'mjc:device-id'
+  let deviceId = localStorage.getItem(key)
+  if (!deviceId) {
+    deviceId = crypto.randomUUID()
+    localStorage.setItem(key, deviceId)
+  }
+  return deviceId
+}
+
 export default function Login({ portal = 'customer' }) {
   const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
@@ -31,38 +42,52 @@ export default function Login({ portal = 'customer' }) {
   const [remember, setRemember] = useState(false)
   const [loginError, setLoginError] = useState('')
   const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [verification, setVerification] = useState(null)
+  const [verificationCode, setVerificationCode] = useState('')
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setLoginError('')
 
-    if (portal === 'customer') {
-      const trimmedUsername = username.trim()
-      const customerAccounts = getCustomerAccounts()
-      const matchingCustomer = customerAccounts.find(
-        (entry) => entry.username.trim().toLowerCase() === trimmedUsername.toLowerCase(),
-      )
-
-      if (matchingCustomer) {
-        if (matchingCustomer.password !== password) {
-          setLoginError('Incorrect password for this customer account.')
-          return
-        }
+    if (verification) {
+      try {
+        const session = await api.verifyLogin({ verification_id: verification.verification_id, code: verificationCode, device_id: getDeviceId() })
+        saveSession(session)
         navigate('/customer/home')
-        return
+      } catch (error) {
+        setLoginError(error.message)
       }
+      return
+    }
 
-      const customerFallback = resolvePortal(username)
-      if (customerFallback === 'customer') {
-        setLoginError('Customer account not found. Please sign up first.')
-        return
+    if (portal === 'customer') {
+      try {
+        const session = await api.login({ username: username.trim(), password, device_id: getDeviceId() })
+        if (session.requires_verification) {
+          setVerification(session)
+        } else {
+          if (session.user.role !== 'CUSTOMER') throw new Error('This account is not a customer account.')
+          saveSession(session)
+          navigate('/customer/home')
+        }
+      } catch (error) {
+        setLoginError(error.message)
       }
+      return
     }
 
     const targetPortal = portal === 'admin' ? 'admin' : portal === 'employee' ? 'employee' : resolvePortal(username)
     if (targetPortal === 'admin') navigate('/dashboard')
     else if (targetPortal === 'employee') navigate('/employee/dashboard')
-    else navigate('/customer/home')
+  }
+
+  const handleResend = async () => {
+    try {
+      await api.resendLoginCode({ verification_id: verification.verification_id })
+      setLoginError('A new verification code was sent.')
+    } catch (error) {
+      setLoginError(error.message)
+    }
   }
 
   return (
@@ -94,6 +119,29 @@ export default function Login({ portal = 'customer' }) {
                 />
               </div>
             </div>
+
+            {verification && (
+              <div className="customer-login-field">
+                <label htmlFor="verificationCode">Verification Code</label>
+                <p className="section-sub" style={{ margin: '0 0 8px' }}>
+                  We sent a 4-digit code by SMS to {verification.masked_phone}.
+                </p>
+                <input
+                  id="verificationCode"
+                  className="input"
+                  inputMode="numeric"
+                  maxLength={4}
+                  pattern="[0-9]{4}"
+                  placeholder="Enter 4-digit code"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  autoFocus
+                />
+                <button type="button" className="customer-login-forgot" style={{ marginTop: 8 }} onClick={handleResend}>
+                  Resend code
+                </button>
+              </div>
+            )}
 
             <div className="customer-login-field">
               <label htmlFor="password">Password</label>
@@ -131,7 +179,7 @@ export default function Login({ portal = 'customer' }) {
             </div>
 
             <button type="submit" className="customer-login-submit">
-              Login
+              {verification ? 'Verify and Login' : 'Login'}
             </button>
 
             {portal === 'customer' && (

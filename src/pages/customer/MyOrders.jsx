@@ -1,24 +1,25 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ListOrdered, ChevronRight } from 'lucide-react'
 import CustomerLayout from '../../layouts/CustomerLayout.jsx'
-import { customerOrders, orderSteps } from '../../data/customerMockData.js'
+import { orderSteps } from '../../data/customerMockData.js'
+import { api } from '../../utils/api.js'
+import { useToast } from '../../context/ToastContext.jsx'
 
 const statusFilters = ['All', ...orderSteps]
 
 function statusBadgeClass(order) {
-  if (order.currentStep >= orderSteps.length - 1) return 'badge-success'
-  if (order.currentStep === 0) return 'badge-warning'
+  if (order.status === 'COMPLETED') return 'badge-success'
+  if (order.status === 'PLACED') return 'badge-warning'
   return 'badge-info'
 }
 
 function statusLabel(order) {
-  return orderSteps[order.currentStep]
+  return order.statusLabel
 }
 
 function orderTotal(order) {
-  const subtotal = order.items.reduce((sum, it) => sum + it.price, 0)
-  return subtotal + (order.expressFee || 0)
+  return Number(order.total_amount || 0)
 }
 
 // Newest to oldest — mock data already carries a relative-recency order,
@@ -29,13 +30,29 @@ function sortNewestFirst(list) {
 
 export default function MyOrders() {
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const [filter, setFilter] = useState('All')
+  const [customerOrders, setCustomerOrders] = useState([])
+
+  useEffect(() => {
+    api.getOrders().then((items) => setCustomerOrders(items.map((order) => ({
+      ...order,
+      id: order.transaction_id,
+      statusLabel: { PLACED: 'Order Placed', DESIGNING: 'Designing', PRINTING: 'Printing', READY: 'Ready for Pickup', COMPLETED: 'Completed', CANCELLED: 'Cancelled' }[order.status] || order.status,
+      placedAt: new Date(order.created_at).toLocaleString(),
+      branch: 'MJ Prints',
+      items: order.items.map((item) => ({ name: item.product_name, qty: `${item.quantity} unit(s)`, price: Number(item.subtotal) })),
+    })))).catch((error) => {
+      setCustomerOrders([])
+      showToast(error.message, 'error')
+    })
+  }, [showToast])
 
   const orders = useMemo(() => {
     const sorted = sortNewestFirst(customerOrders)
     if (filter === 'All') return sorted
     return sorted.filter((o) => statusLabel(o) === filter)
-  }, [filter])
+  }, [filter, customerOrders])
 
   return (
     <CustomerLayout>
@@ -85,7 +102,7 @@ export default function MyOrders() {
             </div>
             <div className="my-order-row-side">
               <div className="cell-primary" style={{ color: 'var(--color-primary)', fontSize: 15 }}>
-                ${orderTotal(order).toFixed(2)}
+                ₱{orderTotal(order).toFixed(2)}
               </div>
               <div className="link-btn flex-row gap-8" style={{ marginTop: 8 }}>
                 Track Order <ChevronRight size={14} />

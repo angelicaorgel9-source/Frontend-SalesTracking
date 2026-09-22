@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
-import { Search, ListOrdered } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Search, ListOrdered, Printer } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import CustomerLayout from '../../layouts/CustomerLayout.jsx'
 import ProductDetailsModal from '../../components/customer/modals/ProductDetailsModal.jsx'
 import NewOrderModal from '../../components/customer/modals/NewOrderModal.jsx'
-import { customerProducts, productCategories } from '../../data/customerMockData.js'
 import { useToast } from '../../context/ToastContext.jsx'
+import { api } from '../../utils/api.js'
 
 const sortOptions = ['Popular', 'Price: Low to High', 'Price: High to Low', 'Name: A-Z']
 
@@ -13,13 +13,36 @@ export default function ProductsServices() {
   const { showToast } = useToast()
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState(productCategories[0])
+  const [products, setProducts] = useState([])
+  const [category, setCategory] = useState('All Categories')
   const [sort, setSort] = useState(sortOptions[0])
   const [viewProduct, setViewProduct] = useState(null)
   const [orderProduct, setOrderProduct] = useState(null)
 
+  useEffect(() => {
+    api.getProducts()
+      .then((items) => setProducts(items.map((product) => ({
+        ...product,
+        id: String(product.id),
+        desc: product.description,
+        price: Number(product.price),
+        priceUnit: 'unit',
+        startingLabel: `Starts at ₱${Number(product.price).toFixed(2)} / unit`,
+        badge: product.category || 'Printing',
+        color: '#00AEEF',
+        icon: Printer,
+        sizes: ['Standard', 'Custom'],
+        materials: ['Standard', 'Premium'],
+        productionTime: '2-3 Business Days',
+      }))))
+      .catch(() => setProducts([]))
+  }, [])
+
+  const availableProducts = products
+  const productCategories = ['All Categories', ...new Set(availableProducts.map((product) => product.category).filter(Boolean))]
+
   const filtered = useMemo(() => {
-    let list = customerProducts.filter((p) => {
+    let list = availableProducts.filter((p) => {
       const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.desc.toLowerCase().includes(search.toLowerCase())
       const matchesCategory = category === 'All Categories' || p.category === category
       return matchesSearch && matchesCategory
@@ -28,12 +51,31 @@ export default function ProductsServices() {
     if (sort === 'Price: High to Low') list = [...list].sort((a, b) => b.price - a.price)
     if (sort === 'Name: A-Z') list = [...list].sort((a, b) => a.name.localeCompare(b.name))
     return list
-  }, [search, category, sort])
+  }, [availableProducts, search, category, sort])
 
-  const handleSaveOrder = (order) => {
-    setOrderProduct(null)
-    showToast(`Order for ${order.product.name} submitted successfully!`, 'success')
-    navigate('/customer/my-orders')
+  const handleSaveOrder = async (order) => {
+    try {
+      const saved = await api.createOrder({
+        customer_name: order.customer.name,
+        customer_phone: order.customer.contact,
+        customer_email: order.customer.email,
+        payment_method: order.payment.toUpperCase() === 'GCASH' ? 'GCASH' : 'CASH',
+        items: [{
+          product: order.product.service_id || order.product.id,
+          item_name: order.product.name,
+          quantity: order.quantity,
+          unit_price: order.product.price,
+          size: order.size,
+          material: order.material,
+          specifications: order.notes,
+        }],
+      })
+      setOrderProduct(null)
+      showToast(`Order ${saved.transaction_id} submitted successfully!`, 'success')
+      navigate('/customer/my-orders')
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
   }
 
   return (
@@ -110,6 +152,7 @@ export default function ProductsServices() {
       {orderProduct && (
         <NewOrderModal
           initialProduct={orderProduct}
+          products={availableProducts}
           onClose={() => setOrderProduct(null)}
           onSave={handleSaveOrder}
         />

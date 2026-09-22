@@ -64,8 +64,8 @@ export default function Analytics() {
       <h1 className="page-title" style={{ display: 'none' }}>Reports &amp; Analytics</h1>
 
       <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        <div className="clickable" onClick={() => showToast('Total Revenue: $142,850.00', 'info')}>
-          <StatCard icon={Wallet} label="Total Revenue" value="$142,850.00" sub="+12.5%" subDirection="up" />
+        <div className="clickable" onClick={() => showToast('Total Revenue: ₱142,850.00', 'info')}>
+          <StatCard icon={Wallet} label="Total Revenue" value="₱142,850.00" sub="+12.5%" subDirection="up" />
         </div>
         <div className="clickable" onClick={() => showToast('Total Orders: 1,284', 'info')}>
           <StatCard icon={ClipboardList} label="Total Orders" value="1,284" sub="+8.2%" subDirection="up" />

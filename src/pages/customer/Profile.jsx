@@ -1,38 +1,41 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Mail, Pencil, Bell, LogOut, Settings, ClipboardList } from 'lucide-react'
 import CustomerLayout from '../../layouts/CustomerLayout.jsx'
 import EditProfileModal from '../../components/customer/modals/EditProfileModal.jsx'
 import { useCustomerProfile } from '../../context/CustomerProfileContext.jsx'
 import { useToast } from '../../context/ToastContext.jsx'
-import { customerOrders, orderSteps } from '../../data/customerMockData.js'
+import { api } from '../../utils/api.js'
 
 export default function CustomerProfile() {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const { profile, openEditProfile, showEditProfile, closeEditProfile } = useCustomerProfile()
+  const [customerOrders, setCustomerOrders] = useState([])
+
+  useEffect(() => {
+    api.getOrders().then(setCustomerOrders).catch(() => setCustomerOrders([]))
+  }, [])
 
   const totalOrders = customerOrders.length
-  const completedOrders = customerOrders.filter((o) => o.currentStep >= orderSteps.length - 1).length
+  const completedOrders = customerOrders.filter((o) => o.status === 'COMPLETED').length
   const pendingOrders = totalOrders - completedOrders
-  const cancelledOrders = 2
-  const totalSpending = customerOrders.reduce(
-    (sum, o) => sum + o.items.reduce((itemSum, it) => itemSum + it.price, 0) + (o.expressFee || 0),
-    0,
-  )
+  const cancelledOrders = customerOrders.filter((o) => o.status === 'CANCELLED').length
+  const totalSpending = customerOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0)
 
   const recentItems = customerOrders.slice(0, 3).map((o) => ({
-    orderId: o.id,
-    name: o.items[0]?.name,
-    qty: o.items[0]?.qty,
-    total: o.items.reduce((sum, item) => sum + item.price, 0) + (o.expressFee || 0),
-    status: o.currentStep >= orderSteps.length - 1 ? 'Delivered' : orderSteps[o.currentStep],
+    orderId: o.transaction_id,
+    name: o.items?.[0]?.product_name,
+    qty: `${o.items?.[0]?.quantity || 0} unit(s)`,
+    total: Number(o.total_amount || 0),
+    status: o.status,
   }))
 
   const profileStats = [
     { label: 'Total Orders', value: String(totalOrders) },
     { label: 'Cancelled', value: String(cancelledOrders) },
     { label: 'Pending', value: String(pendingOrders) },
-    { label: 'Total Spending', value: `$${totalSpending.toFixed(2)}` },
+    { label: 'Total Spending', value: `₱${totalSpending.toFixed(2)}` },
   ]
 
   return (
@@ -139,13 +142,14 @@ export default function CustomerProfile() {
                   </div>
 
                   <div className="customer-profile-order-side">
-                    <div className="customer-profile-order-price">${item.total.toFixed(2)}</div>
-                    <span className={`badge ${item.status === 'Delivered' ? 'badge-success' : 'badge-info'}`}>
+                    <div className="customer-profile-order-price">₱{item.total.toFixed(2)}</div>
+                    <span className={`badge ${item.status === 'COMPLETED' ? 'badge-success' : 'badge-info'}`}>
                       {item.status}
                     </span>
                   </div>
                 </div>
               ))}
+              {!recentItems.length && <div className="section-sub" style={{ padding: '24px 0' }}>No orders yet.</div>}
             </div>
 
             <div className="customer-profile-order-link-wrap">

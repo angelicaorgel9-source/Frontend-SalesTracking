@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, Check, Lock, Mail, Phone, User, UserRound } from 'lucide-react'
+import { ArrowRight, Check, Eye, EyeOff, Lock, Mail, Phone, User, UserRound } from 'lucide-react'
+import { api, saveSession } from '../../utils/api.js'
 
 const defaultStorage = () => {
   try {
@@ -20,6 +21,8 @@ export default function CustomerSignUp() {
     confirmPassword: '',
   })
   const [agree, setAgree] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -27,7 +30,7 @@ export default function CustomerSignUp() {
     setForm((current) => ({ ...current, [field]: event.target.value }))
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
     setError('')
     setSuccess('')
@@ -39,8 +42,8 @@ export default function CustomerSignUp() {
       return
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long.')
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long.')
       return
     }
 
@@ -54,44 +57,14 @@ export default function CustomerSignUp() {
       return
     }
 
-    const accounts = defaultStorage()
-    const duplicate = accounts.some(
-      (account) => account.email.trim().toLowerCase() === email.trim().toLowerCase(),
-    )
-
-    if (duplicate) {
-      setError('This email is already registered.')
-      return
+    try {
+      const session = await api.signup({ username: email.trim().split('@')[0], email: email.trim(), name: fullName.trim(), phone: phone.trim(), password })
+      saveSession(session)
+      setSuccess('Account created successfully. Redirecting to your customer home...')
+      setTimeout(() => navigate('/customer/home'), 700)
+    } catch (apiError) {
+      setError(apiError.message)
     }
-
-    const nextAccount = {
-      fullName: fullName.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      username: email.trim().split('@')[0],
-      password,
-    }
-
-    localStorage.setItem('mjc:customer-accounts', JSON.stringify([...accounts, nextAccount]))
-    localStorage.setItem('mjc:profile', JSON.stringify({
-      name: nextAccount.fullName,
-      email: nextAccount.email,
-      phone: nextAccount.phone,
-      role: 'Customer',
-      avatar: '/src/assets/logo.png',
-    }))
-
-    setSuccess('Account created successfully. Redirecting to your customer home...')
-    setForm({
-      fullName: '',
-      email: '',
-      phone: '',
-      password: '',
-      confirmPassword: '',
-    })
-    setAgree(false)
-
-    setTimeout(() => navigate('/customer/home'), 700)
   }
 
   return (
@@ -129,7 +102,10 @@ export default function CustomerSignUp() {
               <label htmlFor="password">Password</label>
               <div className="customer-signup-input-wrap">
                 <Lock size={15} />
-                <input id="password" type="password" placeholder="••••••••" value={form.password} onChange={updateField('password')} />
+                <input id="password" type={showPassword ? 'text' : 'password'} placeholder="••••••••" value={form.password} onChange={updateField('password')} />
+                <button type="button" className="customer-signup-visibility" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((visible) => !visible)}>
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
               </div>
             </div>
 
@@ -137,7 +113,10 @@ export default function CustomerSignUp() {
               <label htmlFor="confirmPassword">Confirm Password</label>
               <div className="customer-signup-input-wrap">
                 <Lock size={15} />
-                <input id="confirmPassword" type="password" placeholder="••••••••" value={form.confirmPassword} onChange={updateField('confirmPassword')} />
+                <input id="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} placeholder="••••••••" value={form.confirmPassword} onChange={updateField('confirmPassword')} />
+                <button type="button" className="customer-signup-visibility" aria-label={showConfirmPassword ? 'Hide confirmed password' : 'Show confirmed password'} onClick={() => setShowConfirmPassword((visible) => !visible)}>
+                  {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
               </div>
             </div>
 

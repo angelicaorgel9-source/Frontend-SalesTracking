@@ -34,10 +34,14 @@ import CustomerMyOrders from './pages/customer/MyOrders.jsx'
 import CustomerNotifications from './pages/customer/Notifications.jsx'
 import CustomerSettings from './pages/customer/Settings.jsx'
 
+function CustomerRoute({ children }) {
+  return localStorage.getItem('mjc:token') ? children : <Navigate to="/customer/signup" replace />
+}
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/customer/home" replace />} />
+      <Route path="/" element={<Navigate to="/customer/signup" replace />} />
       <Route path="/login" element={<Login portal="customer" />} />
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/employee/login" element={<EmployeeLogin />} />
@@ -115,34 +119,34 @@ export default function App() {
       <Route path="/customer/signup" element={<CustomerSignUp />} />
       <Route
         path="/customer/home"
-        element={<CustomerProfileProvider><CustomerHome /></CustomerProfileProvider>}
+        element={<CustomerRoute><CustomerProfileProvider><CustomerHome /></CustomerProfileProvider></CustomerRoute>}
       />
       <Route
         path="/customer/profile"
-        element={<CustomerProfileProvider><CustomerProfile /></CustomerProfileProvider>}
+        element={<CustomerRoute><CustomerProfileProvider><CustomerProfile /></CustomerProfileProvider></CustomerRoute>}
       />
       <Route
         path="/customer/products-services"
-        element={<CustomerProfileProvider><CustomerProductsServices /></CustomerProfileProvider>}
+        element={<CustomerRoute><CustomerProfileProvider><CustomerProductsServices /></CustomerProfileProvider></CustomerRoute>}
       />
       <Route
         path="/customer/track-order"
-        element={<CustomerProfileProvider><CustomerTrackOrder /></CustomerProfileProvider>}
+        element={<CustomerRoute><CustomerProfileProvider><CustomerTrackOrder /></CustomerProfileProvider></CustomerRoute>}
       />
       <Route
         path="/customer/my-orders"
-        element={<CustomerProfileProvider><CustomerMyOrders /></CustomerProfileProvider>}
+        element={<CustomerRoute><CustomerProfileProvider><CustomerMyOrders /></CustomerProfileProvider></CustomerRoute>}
       />
       <Route
         path="/customer/notifications"
-        element={<CustomerProfileProvider><CustomerNotifications /></CustomerProfileProvider>}
+        element={<CustomerRoute><CustomerProfileProvider><CustomerNotifications /></CustomerProfileProvider></CustomerRoute>}
       />
       <Route
         path="/customer/settings"
-        element={<CustomerProfileProvider><CustomerSettings /></CustomerProfileProvider>}
+        element={<CustomerRoute><CustomerProfileProvider><CustomerSettings /></CustomerProfileProvider></CustomerRoute>}
       />
 
-      <Route path="*" element={<Navigate to="/customer/home" replace />} />
+      <Route path="*" element={<Navigate to="/customer/signup" replace />} />
     </Routes>
   )
 }

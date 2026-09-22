@@ -1183,6 +1183,15 @@ table.data-table tbody tr:hover {
   cursor: pointer;
 }
 
+.customer-signup-visibility {
+  display: inline-flex;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #7a7a7a;
+  cursor: pointer;
+}
+
 .customer-login-row-between {
   display: flex;
   align-items: center;

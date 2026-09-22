@@ -76,7 +76,7 @@ export default function Dashboard() {
               <StatCard icon={ClipboardList} label="Assigned Jobs" value="12" sub="+4 vs yesterday · 3 urgent deadlines" subDirection="up" />
             </div>
             <div className="clickable" onClick={() => navigate('/employee/orders')}>
-              <StatCard icon={HandCoins} label="New Sales Today" value="$4,280" sub="On target · 18 new orders placed" subDirection="up" />
+              <StatCard icon={HandCoins} label="New Sales Today" value="₱4,280" sub="On target · 18 new orders placed" subDirection="up" />
             </div>
             <div className="clickable" onClick={() => navigate('/employee/customers')}>
               <StatCard icon={UserPlus} label="Registered Customers" value="842" sub="Last 24h · 7 accounts pending approval" />

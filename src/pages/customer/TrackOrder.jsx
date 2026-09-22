@@ -4,8 +4,11 @@ import {
   Check, Palette, Printer, Package, PackageCheck, Download, Share2, ListOrdered, Search, Pencil,
 } from 'lucide-react'
 import CustomerLayout from '../../layouts/CustomerLayout.jsx'
-import { customerOrders, orderSteps } from '../../data/customerMockData.js'
+import { orderSteps } from '../../data/customerMockData.js'
 import { useToast } from '../../context/ToastContext.jsx'
+import { api } from '../../utils/api.js'
+import EditOrderModal from '../../components/customer/modals/EditOrderModal.jsx'
+import { downloadPdfReport } from '../../utils/pdf.js'
 
 const stepIcons = [Check, Palette, Printer, Package, PackageCheck]
 
@@ -18,8 +21,19 @@ function normalizeOrderId(value) {
 }
 
 function statusLabel(order) {
-  if (order.currentStep >= orderSteps.length - 1) return 'Completed'
-  return orderSteps[order.currentStep]
+  return order.statusLabel
+}
+
+function normalizeOrder(order) {
+  const steps = { PLACED: 0, DESIGNING: 1, PRINTING: 2, READY: 3, COMPLETED: 4 }
+  return {
+    ...order,
+    id: order.transaction_id,
+    currentStep: steps[order.status] ?? 0,
+    statusLabel: { PLACED: 'Order Placed', DESIGNING: 'Designing', PRINTING: 'Printing', READY: 'Ready for Pickup', COMPLETED: 'Completed', CANCELLED: 'Cancelled' }[order.status] || order.status,
+    lastUpdated: new Date(order.updated_at || order.created_at).toLocaleString(),
+    items: order.items.map((item) => ({ name: item.product_name, qty: `${item.quantity} unit(s)`, price: Number(item.subtotal) })),
+  }
 }
 
 export default function TrackOrder() {
@@ -27,19 +41,18 @@ export default function TrackOrder() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [input, setInput] = useState(searchParams.get('id') || '')
   const [order, setOrder] = useState(null)
+  const [showEditOrder, setShowEditOrder] = useState(false)
 
   useEffect(() => {
     const id = searchParams.get('id')
     if (id) {
-      const normalizedId = normalizeOrderId(id)
-      const found = customerOrders.find((o) => normalizeOrderId(o.id) === normalizedId)
-      if (found) {
-        setOrder(found)
-        setInput(found.id)
-      } else {
+      api.trackOrder(id).then((result) => {
+        setOrder(normalizeOrder(result))
+        setInput(result.transaction_id)
+      }).catch(() => {
         setOrder(null)
         showToast(`No order found for "${id}".`, 'error')
-      }
+      })
     } else {
       setOrder(null)
     }
@@ -53,22 +66,45 @@ export default function TrackOrder() {
       return
     }
 
-    const normalized = normalizeOrderId(trimmedInput)
-    const found = customerOrders.find((o) => normalizeOrderId(o.id) === normalized)
-
-    if (!found) {
+    api.trackOrder(trimmedInput).then((result) => {
+      setOrder(normalizeOrder(result))
+      setInput(result.transaction_id)
+      setSearchParams({ id: result.transaction_id })
+    }).catch(() => {
       showToast(`No order found for "${trimmedInput}".`, 'error')
       setOrder(null)
-      return
-    }
-
-    setOrder(found)
-    setInput(found.id)
-    setSearchParams({ id: found.id })
+    })
   }
 
   const subtotal = order ? order.items.reduce((sum, it) => sum + it.price, 0) : 0
-  const total = order ? subtotal + (order.expressFee || 0) : 0
+  const total = order ? Number(order.total_amount || subtotal) : 0
+
+  const handleEditOrder = async (updates) => {
+    try {
+      await api.updateOrder(order.transaction_id, updates)
+      const refreshed = await api.trackOrder(order.transaction_id)
+      setOrder(normalizeOrder(refreshed))
+      setShowEditOrder(false)
+      showToast('Order updated successfully.', 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
+  }
+
+  const handleDownloadInvoice = () => {
+    downloadPdfReport({
+      filename: `MJ-Prints-Invoice-${order.transaction_id}.pdf`,
+      heading: `Invoice ${order.transaction_id}`,
+      subheading: `Customer: ${order.customer_name || 'Customer'} | Status: ${statusLabel(order)}`,
+      columns: ['Item', 'Quantity', 'Amount'],
+      rows: [
+        ...order.items.map((item) => [item.name, item.qty, `PHP ${item.price.toFixed(2)}`]),
+        ['Delivery Fee', '', 'PHP 100.00'],
+        ['Total', '', `PHP ${total.toFixed(2)}`],
+      ],
+    })
+    showToast('Invoice downloaded.', 'success')
+  }
 
   return (
     <CustomerLayout showHeaderNewOrder={false} showFooterNewOrder>
@@ -105,10 +141,10 @@ export default function TrackOrder() {
               </div>
             </div>
             <div className="flex-row gap-8">
-              <button className="btn btn-outline btn-sm" onClick={() => showToast('Opening edit order options…', 'info')}>
+              <button className="btn btn-outline btn-sm" onClick={() => setShowEditOrder(true)}>
                 <Pencil size={14} /> Edit
               </button>
-              <button className="btn btn-outline btn-sm" onClick={() => showToast('Downloading invoice…', 'info')}>
+              <button className="btn btn-outline btn-sm" onClick={handleDownloadInvoice}>
                 <Download size={14} /> Invoice
               </button>
               <button className="btn btn-outline btn-sm" onClick={() => showToast('Share link copied to clipboard.', 'success')}>
@@ -167,7 +203,7 @@ export default function TrackOrder() {
                         <tr key={item.name}>
                           <td className="cell-primary">{item.name}</td>
                           <td className="text-secondary">{item.qty}</td>
-                          <td className="cell-primary" style={{ color: 'var(--color-primary)' }}>${item.price.toFixed(2)}</td>
+                          <td className="cell-primary" style={{ color: 'var(--color-primary)' }}>₱{item.price.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -176,17 +212,17 @@ export default function TrackOrder() {
                 <div className="card-pad">
                   <div className="flex-between mb-16" style={{ fontSize: 12.5 }}>
                     <span className="text-secondary">Subtotal</span>
-                    <span className="cell-primary">${subtotal.toFixed(2)}</span>
+                    <span className="cell-primary">₱{subtotal.toFixed(2)}</span>
                   </div>
                   {order.expressFee > 0 && (
                     <div className="flex-between mb-16" style={{ fontSize: 12.5 }}>
                       <span className="text-secondary">Express Processing</span>
-                      <span className="cell-primary">${order.expressFee.toFixed(2)}</span>
+                      <span className="cell-primary">₱{order.expressFee.toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex-between" style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
                     <span className="cell-primary">Total</span>
-                    <span className="cell-primary" style={{ color: 'var(--color-primary)', fontSize: 16 }}>${total.toFixed(2)}</span>
+                    <span className="cell-primary" style={{ color: 'var(--color-primary)', fontSize: 16 }}>₱{total.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -209,6 +245,13 @@ export default function TrackOrder() {
             <ListOrdered size={14} /> View My Orders
           </Link>
         </div>
+      )}
+      {showEditOrder && order && (
+        <EditOrderModal
+          order={order}
+          onClose={() => setShowEditOrder(false)}
+          onSave={handleEditOrder}
+        />
       )}
     </CustomerLayout>
   )

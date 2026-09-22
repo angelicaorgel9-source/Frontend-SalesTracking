@@ -1,19 +1,28 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowRight, ListOrdered } from 'lucide-react'
+import { ArrowRight, ListOrdered, Printer } from 'lucide-react'
 import CustomerLayout from '../../layouts/CustomerLayout.jsx'
 import logo from '../../assets/logo.png'
-import { customerProducts } from '../../data/customerMockData.js'
 import { useToast } from '../../context/ToastContext.jsx'
-
-const featuredIds = ['tarpaulin', 'stickers', 'souvenirs', 'apparel']
+import { api } from '../../utils/api.js'
 
 export default function Home() {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const [transactionId, setTransactionId] = useState('')
   const [visibleStart, setVisibleStart] = useState(0)
-  const featured = featuredIds.map((id) => customerProducts.find((p) => p.id === id)).filter(Boolean)
+  const [featured, setFeatured] = useState([])
+
+  useEffect(() => {
+    api.getProducts().then((items) => setFeatured(items.map((product) => ({
+      ...product,
+      id: String(product.id),
+      desc: product.description,
+      color: '#00AEEF',
+      icon: Printer,
+    })))).catch(() => setFeatured([]))
+  }, [])
+
   const visibleFeatured = Array.from({ length: Math.min(3, featured.length) }, (_, index) => {
     const productIndex = (visibleStart + index) % featured.length
     return featured[productIndex]
@@ -28,6 +37,7 @@ export default function Home() {
   }
 
   const handleNextFeatured = () => {
+    if (!featured.length) return
     setVisibleStart((prev) => (prev + 1) % featured.length)
   }
 
@@ -67,6 +77,7 @@ export default function Home() {
               </div>
             )
           })}
+          {!visibleFeatured.length && <div className="section-sub" style={{ padding: '30px 0' }}>No services available yet.</div>}
         </div>
 
         <button className="customer-product-next" onClick={handleNextFeatured} aria-label="View more products">

@@ -255,7 +255,7 @@ export default function Orders() {
           <StatCard icon={UserCheck} label="Pending Proofs" value="28" sub="Critical attention needed" subDirection="down" />
         </div>
         <div className="clickable" onClick={() => navigate('/analytics')}>
-          <StatCard icon={DollarSign} label="Revenue (Daily)" value="$12,450.80" />
+          <StatCard icon={DollarSign} label="Revenue (Daily)" value="₱12,450.80" />
         </div>
       </div>
 
