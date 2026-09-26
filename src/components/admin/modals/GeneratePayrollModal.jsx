@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { Search, Info, FileBarChart2 } from 'lucide-react'
 import Modal from '../../Modal.jsx'
 
-export default function GeneratePayrollModal({ onClose, onGenerate }) {
+export default function GeneratePayrollModal({ onClose, onGenerate, initialPeriod = '' }) {
   const [scope, setScope] = useState('all')
   const [employeeSearch, setEmployeeSearch] = useState('')
-  const [period, setPeriod] = useState('')
+  const [period, setPeriod] = useState(initialPeriod)
 
   const handleGenerate = () => {
     onGenerate({ scope, employeeSearch, period })
@@ -44,7 +44,7 @@ export default function GeneratePayrollModal({ onClose, onGenerate }) {
           <Search />
           <input
             className="input"
-            placeholder="Enter name or ID..."
+            placeholder="Exact username or full name"
             value={employeeSearch}
             onChange={(e) => setEmployeeSearch(e.target.value)}
             disabled={scope === 'all'}
@@ -60,7 +60,7 @@ export default function GeneratePayrollModal({ onClose, onGenerate }) {
 
       <div className="info-note" style={{ marginTop: 16, marginBottom: 0 }}>
         <Info />
-        Payroll will be calculated based on active salary rates and current attendance records for the selected period.
+        This creates pending payroll records. Enter actual earnings and deductions from each record before marking it paid.
       </div>
     </Modal>
   )

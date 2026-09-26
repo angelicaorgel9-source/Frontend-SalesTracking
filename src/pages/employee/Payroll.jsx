@@ -1,38 +1,54 @@
-import { useState } from 'react'
-import { Download, Plus, Minus, User } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Plus, Minus, User } from 'lucide-react'
 import EmployeeLayout from '../../layouts/EmployeeLayout.jsx'
-import { myPayslip } from '../../data/employeeMockData.js'
-import { downloadPdfReport } from '../../utils/pdf.js'
 import { useToast } from '../../context/ToastContext.jsx'
+import { api } from '../../utils/api.js'
 
-const peso = (n) => `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const peso = (n) => `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+function formatPeriod(period) {
+  if (!period) return ''
+  const [year, month] = period.split('-').map(Number)
+  return new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}
 
 export default function Payroll() {
   const { showToast } = useToast()
-  const [day, setDay] = useState('')
-  const [monthNum, setMonthNum] = useState('')
-  const [year, setYear] = useState('')
+  const [payslip, setPayslip] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  const totalEarnings = myPayslip.earnings.reduce((sum, e) => sum + e.amount, 0)
-  const totalDeductions = myPayslip.deductions.reduce((sum, e) => sum + e.amount, 0)
+  useEffect(() => {
+    let isActive = true
+    let isInitialRequest = true
+    const refreshPayroll = async () => {
+      try {
+        const records = await api.getMyPayroll()
+        if (!isActive) return
+        setPayslip(records)
+      } catch (error) {
+        if (isActive && isInitialRequest) showToast(error.message, 'error')
+      } finally {
+        if (isActive) setLoading(false)
+        isInitialRequest = false
+      }
+    }
+
+    refreshPayroll()
+    const refreshInterval = window.setInterval(refreshPayroll, 5000)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refreshPayroll()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      isActive = false
+      window.clearInterval(refreshInterval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [showToast])
+
+  const totalEarnings = (payslip?.earnings || []).reduce((sum, item) => sum + Number(item.amount || 0), 0)
+  const totalDeductions = (payslip?.deductions || []).reduce((sum, item) => sum + Number(item.amount || 0), 0)
   const netSalary = totalEarnings - totalDeductions
-
-  const handleDownload = () => {
-    downloadPdfReport({
-      filename: `Payslip-${myPayslip.employeeId}.pdf`,
-      heading: `Payslip — ${myPayslip.employeeName}`,
-      subheading: `ID: ${myPayslip.employeeId}  •  Period: ${myPayslip.period}  •  Status: ${myPayslip.status}`,
-      columns: ['Item', 'Amount'],
-      rows: [
-        ...myPayslip.earnings.map((e) => [e.label, peso(e.amount)]),
-        ['Total Earnings', peso(totalEarnings)],
-        ...myPayslip.deductions.map((d) => [d.label, `-${peso(d.amount)}`]),
-        ['Total Deductions', `-${peso(totalDeductions)}`],
-        ['NET SALARY', peso(netSalary)],
-      ],
-    })
-    showToast('Payslip downloaded', 'success')
-  }
 
   return (
     <EmployeeLayout topbarProps={{ title: 'My Payroll' }}>
@@ -41,18 +57,11 @@ export default function Payroll() {
           <h1 className="page-title" style={{ marginBottom: 4 }}>My Payroll</h1>
           <div className="section-sub">View your payroll summary and salary details.</div>
         </div>
-        <div className="flex-row gap-8" style={{ alignItems: 'end' }}>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Enter Date</label>
-            <div className="flex-row gap-8">
-              <input className="input" placeholder="DD" style={{ width: 64 }} value={day} onChange={(e) => setDay(e.target.value)} maxLength={2} />
-              <input className="input" placeholder="MM" style={{ width: 64 }} value={monthNum} onChange={(e) => setMonthNum(e.target.value)} maxLength={2} />
-              <input className="input" placeholder="YYYY" style={{ width: 84 }} value={year} onChange={(e) => setYear(e.target.value)} maxLength={4} />
-            </div>
-          </div>
-        </div>
       </div>
 
+      {loading ? <div className="card card-pad text-secondary">Loading payroll...</div> : !payslip ? (
+        <div className="card card-pad text-secondary">No payroll has been generated for your account yet.</div>
+      ) : (
       <div className="card card-pad">
         <div className="flex-between mb-20" style={{ flexWrap: 'wrap', gap: 12 }}>
           <div className="flex-row gap-12">
@@ -60,13 +69,13 @@ export default function Payroll() {
               <User size={20} />
             </span>
             <div>
-              <div className="cell-primary" style={{ fontSize: 16 }}>{myPayslip.employeeName}</div>
-              <div className="cell-sub">ID: {myPayslip.employeeId}</div>
+              <div className="cell-primary" style={{ fontSize: 16 }}>{payslip.employee_name}</div>
+              <div className="cell-sub">ID: {payslip.employee_username}</div>
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <span className="badge badge-success" style={{ marginBottom: 4, display: 'inline-block' }}>{myPayslip.status}</span>
-            <div className="cell-sub">Period: {myPayslip.period}</div>
+            <span className={`badge ${payslip.status === 'PAID' ? 'badge-success' : 'badge-warning'}`} style={{ marginBottom: 4, display: 'inline-block' }}>{payslip.status}</span>
+            <div className="cell-sub">Period: {formatPeriod(payslip.period)}</div>
           </div>
         </div>
 
@@ -75,10 +84,10 @@ export default function Payroll() {
             <div className="flex-row gap-8 mb-16" style={{ color: 'var(--color-primary)', fontWeight: 700 }}>
               <Plus size={15} /> Earnings
             </div>
-            {myPayslip.earnings.map((e) => (
-              <div key={e.label} className="flex-between" style={{ padding: '8px 0', borderBottom: '1px solid #EFEFEF' }}>
-                <span className="text-secondary" style={{ fontSize: 13 }}>{e.label}</span>
-                <span className="cell-primary">{peso(e.amount)}</span>
+            {payslip.earnings.map((item) => (
+              <div key={item.label} className="flex-between" style={{ padding: '8px 0', borderBottom: '1px solid #EFEFEF' }}>
+                <span className="text-secondary" style={{ fontSize: 13 }}>{item.label}</span>
+                <span className="cell-primary">{peso(item.amount)}</span>
               </div>
             ))}
             <div className="flex-between" style={{ padding: '10px 0', marginTop: 4 }}>
@@ -91,10 +100,10 @@ export default function Payroll() {
             <div className="flex-row gap-8 mb-16" style={{ color: 'var(--color-danger)', fontWeight: 700 }}>
               <Minus size={15} /> Deductions
             </div>
-            {myPayslip.deductions.map((d) => (
-              <div key={d.label} className="flex-between" style={{ padding: '8px 0', borderBottom: '1px solid #EFEFEF' }}>
-                <span className="text-secondary" style={{ fontSize: 13 }}>{d.label}</span>
-                <span className="cell-primary">{peso(d.amount)}</span>
+            {payslip.deductions.map((item) => (
+              <div key={item.label} className="flex-between" style={{ padding: '8px 0', borderBottom: '1px solid #EFEFEF' }}>
+                <span className="text-secondary" style={{ fontSize: 13 }}>{item.label}</span>
+                <span className="cell-primary">{peso(item.amount)}</span>
               </div>
             ))}
             <div className="flex-between" style={{ padding: '10px 0', marginTop: 4 }}>
@@ -115,12 +124,8 @@ export default function Payroll() {
           <span style={{ fontWeight: 800, fontSize: 22 }}>{peso(netSalary)}</span>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn btn-primary" onClick={handleDownload}>
-            <Download size={15} /> Download PDF
-          </button>
-        </div>
       </div>
+      )}
     </EmployeeLayout>
   )
 }

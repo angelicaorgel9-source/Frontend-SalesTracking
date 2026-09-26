@@ -1,17 +1,21 @@
 from django.contrib.auth import authenticate
 from datetime import datetime, timezone
 from datetime import timedelta
+import re
 import secrets
 from django.conf import settings
+from django.db.models import Count, Max, Q, Sum
+from django.utils import timezone as django_timezone
 from rest_framework import generics, status
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from orders.models import Order
 from .models import User
-from .permissions import IsAdmin
-from .serializers import CustomerSignupSerializer, CreateEmployeeSerializer, UserSerializer
+from .permissions import IsAdmin, IsAdminOrEmployee
+from .serializers import CustomerProfileUpdateSerializer, CustomerSignupSerializer, CreateEmployeeSerializer, UserSerializer
 from config.mongodb import get_mongo_database
 from .sms import send_login_code
 
@@ -148,6 +152,151 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
         return UserSerializer
 
 
+class EmployeeDashboardView(APIView):
+    permission_classes = [IsAdminOrEmployee]
+
+    def _status_label(self, status):
+        mapping = {
+            'PLACED': 'Queued',
+            'DESIGNING': 'In Progress',
+            'PRINTING': 'In Progress',
+            'READY': 'Review',
+            'COMPLETED': 'Completed',
+            'CANCELLED': 'Cancelled',
+        }
+        return mapping.get(status, status)
+
+    def _priority(self, status):
+        return 'urgent' if status in ['DESIGNING', 'PRINTING'] else 'up'
+
+    def get(self, request):
+        today_start = django_timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+
+        orders = Order.objects.all()
+        open_orders = orders.exclude(status__in=[Order.STATUS_COMPLETED, Order.STATUS_CANCELLED])
+        today_total = float(
+            orders.filter(created_at__gte=today_start).aggregate(total=Sum('total_amount'))['total'] or 0
+        )
+
+        pending_jobs = []
+        for order in open_orders.order_by('-created_at')[:5]:
+            pending_jobs.append({
+                'id': order.transaction_id,
+                'customer': order.customer_name or 'Walk-in Customer',
+                'details': f'{order.items.count()} item(s) • ₱{order.total_amount}',
+                'status': self._status_label(order.status),
+                'priority': self._priority(order.status),
+            })
+
+        activity = []
+        for order in orders.order_by('-created_at')[:5]:
+            activity.append({
+                'id': str(order.id),
+                'type': 'update',
+                'title': f'Order {order.transaction_id} moved to {self._status_label(order.status)}',
+                'time': order.updated_at.strftime('%b %d, %Y %H:%M'),
+            })
+
+        return Response({
+            'stats': {
+                'assigned_jobs': open_orders.count(),
+                'new_sales_today': today_total,
+                'registered_customers': User.objects.filter(role=User.CUSTOMER).count(),
+            },
+            'pending_jobs': pending_jobs,
+            'activity': activity,
+        })
+
+
+class EmployeeCustomersView(APIView):
+    permission_classes = [IsAdminOrEmployee]
+
+    def get(self, request):
+        customers = User.objects.filter(role=User.CUSTOMER).order_by('-created_at')
+        data = []
+        for customer in customers:
+            if settings.MONGO_URI:
+                order_filters = [{'customerId': str(customer.id)}]
+                if customer.email:
+                    order_filters.append({
+                        'customerEmail': {
+                            '$regex': f'^{re.escape(customer.email)}$',
+                            '$options': 'i',
+                        },
+                    })
+                summary = next(get_mongo_database()['orders'].aggregate([
+                    {'$match': {'$or': order_filters}},
+                    {'$group': {
+                        '_id': None,
+                        'order_count': {'$sum': 1},
+                        'total_spend': {'$sum': {'$ifNull': ['$totalAmount', 0]}},
+                        'last_order_at': {'$max': '$createdAt'},
+                    }},
+                ]), {})
+                order_count = summary.get('order_count', 0)
+                total_spend = summary.get('total_spend', 0)
+                last_order_at = summary.get('last_order_at')
+            else:
+                customer_orders = Order.objects.filter(created_by=customer)
+                if customer.email:
+                    customer_orders = customer_orders | Order.objects.filter(customer_email__iexact=customer.email)
+                summary = customer_orders.aggregate(
+                    order_count=Count('id'),
+                    total_spend=Sum('total_amount'),
+                    last_order_at=Max('created_at'),
+                )
+                order_count = summary['order_count']
+                total_spend = summary['total_spend']
+                last_order_at = summary['last_order_at']
+
+            data.append({
+                'id': customer.id,
+                'name': customer.name or customer.username,
+                'company': customer.email.split('@')[1].split('.')[0].title() if customer.email else 'Walk-in Client',
+                'email': customer.email,
+                'phone': customer.phone,
+                'orders': order_count,
+                'status': 'Active' if customer.is_active else 'Inactive',
+                'lastDate': last_order_at.strftime('%b %d, %Y') if last_order_at else '—',
+                'spend': f"₱{float(total_spend or 0):,.2f}",
+            })
+        return Response(data)
+
+
+class EmployeeNotificationsView(APIView):
+    permission_classes = [IsAdminOrEmployee]
+
+    def get(self, request):
+        notifications = []
+        recent_orders = Order.objects.order_by('-created_at')[:4]
+        for order in recent_orders:
+            notifications.append({
+                'id': f'order-{order.id}',
+                'category': 'Orders',
+                'type': 'info',
+                'title': f'Order {order.transaction_id} updated',
+                'desc': f'{order.customer_name} is now in {order.status}.',
+                'time': order.updated_at.strftime('%b %d, %Y %H:%M'),
+                'unread': True,
+                'action': 'View order',
+            })
+
+        new_customers = User.objects.filter(role=User.CUSTOMER).order_by('-created_at')[:2]
+        for customer in new_customers:
+            notifications.append({
+                'id': f'customer-{customer.id}',
+                'category': 'Announcements',
+                'type': 'success',
+                'title': 'New customer registered',
+                'desc': f'{customer.name or customer.username} just joined MJ Prints.',
+                'time': customer.created_at.strftime('%b %d, %Y %H:%M'),
+                'unread': True,
+                'action': 'Review profile',
+            })
+
+        return Response(notifications)
+
+
 class CustomerSignupView(generics.CreateAPIView):
     permission_classes = [AllowAny]
     serializer_class = CustomerSignupSerializer
@@ -185,10 +334,10 @@ class CustomerProfileView(APIView):
         return Response(UserSerializer(request.user).data)
 
     def patch(self, request):
-        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        serializer = CustomerProfileUpdateSerializer(request.user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(serializer.data)
+        return Response(UserSerializer(request.user).data)
 
 
 class CustomerAddressesView(APIView):

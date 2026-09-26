@@ -6,7 +6,10 @@ from .views import (
     CustomerNotificationsView,
     CustomerProfileView,
     CustomerSignupView,
+    EmployeeCustomersView,
+    EmployeeDashboardView,
     EmployeeListCreateView,
+    EmployeeNotificationsView,
     LoginView,
     ResendLoginCodeView,
     VerifyLoginView,
@@ -22,4 +25,7 @@ urlpatterns = [
     path('branches/', CustomerBranchesView.as_view(), name='customer-branches'),
     path('notifications/customers/', CustomerNotificationsView.as_view(), name='customer-notifications'),
     path('employees/', EmployeeListCreateView.as_view(), name='employee-list-create'),
+    path('employees/dashboard/', EmployeeDashboardView.as_view(), name='employee-dashboard'),
+    path('employees/customers/', EmployeeCustomersView.as_view(), name='employee-customers'),
+    path('employees/notifications/', EmployeeNotificationsView.as_view(), name='employee-notifications'),
 ]

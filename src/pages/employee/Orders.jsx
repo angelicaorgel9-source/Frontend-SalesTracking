@@ -8,8 +8,40 @@ import AddOrderModal from '../../components/employee/modals/AddOrderModal.jsx'
 import EditOrderModal from '../../components/employee/modals/EditOrderModal.jsx'
 import EditOrderStatusModal from '../../components/employee/modals/EditOrderStatusModal.jsx'
 import ViewOrderModal from '../../components/employee/modals/ViewOrderModal.jsx'
-import { orders as seedOrders } from '../../data/employeeMockData.js'
 import { useToast } from '../../context/ToastContext.jsx'
+import { api } from '../../utils/api.js'
+
+const toUiStatus = (status) => {
+  const mapping = {
+    PLACED: 'Pending Proof',
+    DESIGNING: 'In Production',
+    PRINTING: 'Printing',
+    READY: 'Review',
+    COMPLETED: 'Completed',
+    CANCELLED: 'Cancelled',
+  }
+  return mapping[status] || 'Pending Proof'
+}
+
+const toUiStatusType = (status) => {
+  if (status === 'COMPLETED') return 'success'
+  if (status === 'PRINTING' || status === 'DESIGNING') return 'danger'
+  if (status === 'READY') return 'neutral'
+  return 'warning'
+}
+
+const formatMinutesAgo = (dateString) => {
+  if (!dateString) return 'Just now'
+  const diff = Date.now() - new Date(dateString).getTime()
+  const minutes = Math.max(0, Math.round(diff / 60000))
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
+  return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 const statusBadge = {
   warning: 'badge-warning',
@@ -27,7 +59,7 @@ const dateOptions = ['mm/dd/yyyy', 'Today', 'This Week', 'This Month']
 export default function Orders() {
   const { showToast } = useToast()
   const [view, setView] = useState('list')
-  const [orders, setOrders] = useState(seedOrders)
+  const [orders, setOrders] = useState([])
   const [statFilter, setStatFilter] = useState(null)
   const [statusFilter, setStatusFilter] = useState(statusOptions[0])
   const [branchFilter, setBranchFilter] = useState(branchOptions[0])
@@ -48,6 +80,62 @@ export default function Orders() {
   const [editOrder, setEditOrder] = useState(null)
   const [viewOrder, setViewOrder] = useState(null)
   const [statusOrder, setStatusOrder] = useState(null)
+
+  useEffect(() => {
+    let isActive = true
+    const refreshOrders = async () => {
+      try {
+        const items = await api.getOrders()
+        const mapped = (items || []).map((order) => {
+          const itemNames = (order.items || []).map((item) => item.product_name || 'Printing Service')
+          const details = itemNames.length
+            ? `${itemNames.slice(0, 2).join(', ')}${itemNames.length > 2 ? ' +' + (itemNames.length - 2) : ''}`
+            : 'Production order'
+          return {
+            id: order.transaction_id || order.id,
+            minutesAgo: formatMinutesAgo(order.created_at),
+            createdAt: order.created_at,
+            customer: order.customer_name || 'Walk-in Customer',
+            initials: (order.customer_name || 'WC').trim().split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+            email: order.customer_email || 'No email provided',
+            project: itemNames[0] || 'Custom Print Order',
+            details: `(${(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)} units) ${details}`,
+            branch: 'Baliuag',
+            status: toUiStatus(order.status),
+            statusType: toUiStatusType(order.status),
+            backendStatus: order.status,
+            totalAmount: Number(order.total_amount || 0),
+            value: `₱${Number(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            dueDate: order.estimated_completion || '',
+            quantity: (order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+          }
+        })
+        if (isActive) setOrders(mapped)
+      } catch {
+        // Keep the last successful result visible if the API is temporarily unavailable.
+      }
+    }
+
+    refreshOrders()
+    const refreshInterval = window.setInterval(refreshOrders, 15000)
+    return () => {
+      isActive = false
+      window.clearInterval(refreshInterval)
+    }
+  }, [])
+
+  const today = new Date()
+  const todaysOrders = orders.filter((order) => {
+    if (!order.createdAt) return false
+    const createdAt = new Date(order.createdAt)
+    return createdAt.getFullYear() === today.getFullYear()
+      && createdAt.getMonth() === today.getMonth()
+      && createdAt.getDate() === today.getDate()
+  })
+  const pendingProofCount = orders.filter((order) => order.backendStatus === 'PLACED').length
+  const dailyRevenue = todaysOrders
+    .filter((order) => order.backendStatus !== 'CANCELLED')
+    .reduce((total, order) => total + order.totalAmount, 0)
 
   const handleSubmitOrder = (order) => {
     const newOrder = {
@@ -274,13 +362,13 @@ export default function Orders() {
 
       <div className="three-col mb-20">
         <div className="clickable" onClick={() => setStatFilter(null)}>
-          <StatCard icon={ShoppingBag} label="Orders Today" value="142" sub="↑ 12% from yesterday" subDirection="up" />
+          <StatCard icon={ShoppingBag} label="Orders Today" value={String(todaysOrders.length)} sub="Live customer and employee orders" />
         </div>
         <div className="clickable" onClick={() => setStatFilter('pending')}>
-          <StatCard icon={UserCheck} label="Pending Proofs" value="28" sub="Critical attention needed" subDirection="down" />
+          <StatCard icon={UserCheck} label="Pending Proofs" value={String(pendingProofCount)} sub="Orders awaiting production" subDirection="down" />
         </div>
-        <div className="clickable" onClick={() => showToast('Daily revenue: ₱12,450.80', 'info')}>
-          <StatCard icon={DollarSign} label="Revenue (Daily)" value="₱12,450.80" />
+        <div className="clickable" onClick={() => showToast(`Daily revenue: ${peso(dailyRevenue)}`, 'info')}>
+          <StatCard icon={DollarSign} label="Revenue (Daily)" value={peso(dailyRevenue)} />
         </div>
       </div>
 

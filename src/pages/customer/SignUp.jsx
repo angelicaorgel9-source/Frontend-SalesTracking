@@ -59,7 +59,7 @@ export default function CustomerSignUp() {
 
     try {
       const session = await api.signup({ username: email.trim().split('@')[0], email: email.trim(), name: fullName.trim(), phone: phone.trim(), password })
-      saveSession(session)
+      saveSession(session, 'customer')
       setSuccess('Account created successfully. Redirecting to your customer home...')
       setTimeout(() => navigate('/customer/home'), 700)
     } catch (apiError) {

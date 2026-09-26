@@ -6,19 +6,25 @@ function parseMoney(str) {
   return Number(String(str).replace(/[^0-9.-]/g, '')) || 0
 }
 
+function itemAmount(items, label, fallback = 0) {
+  const item = items?.find((entry) => entry.label.toLowerCase() === label.toLowerCase())
+  return item ? Number(item.amount) || 0 : fallback
+}
+
 export default function EditPayrollModal({ entry, onClose, onSave }) {
   const [earnings, setEarnings] = useState({
-    basic: parseMoney(entry?.gross) || 25000,
-    overtime: 3500,
-    allowances: 1500,
-    bonuses: 0,
+    basic: itemAmount(entry?.earnings, 'Basic Salary', parseMoney(entry?.gross)),
+    overtime: itemAmount(entry?.earnings, 'Overtime Pay'),
+    allowances: itemAmount(entry?.earnings, 'Allowances'),
+    bonuses: itemAmount(entry?.earnings, 'Bonuses'),
   })
   const [deductions, setDeductions] = useState({
-    sss: 1125,
-    philhealth: 500,
-    pagibig: 100,
-    tax: 2150,
+    sss: itemAmount(entry?.deductionItems, 'SSS Contribution'),
+    philhealth: itemAmount(entry?.deductionItems, 'PhilHealth'),
+    pagibig: itemAmount(entry?.deductionItems, 'Pag-IBIG'),
+    tax: itemAmount(entry?.deductionItems, 'Withholding Tax'),
   })
+  const [status, setStatus] = useState(entry?.status || 'PENDING')
 
   const updateEarn = (key) => (e) => setEarnings((f) => ({ ...f, [key]: Number(e.target.value) || 0 }))
   const updateDed = (key) => (e) => setDeductions((f) => ({ ...f, [key]: Number(e.target.value) || 0 }))
@@ -33,6 +39,19 @@ export default function EditPayrollModal({ entry, onClose, onSave }) {
       gross: `₱${gross.toLocaleString()}`,
       deductions: `-₱${totalDeductions.toLocaleString()}`,
       net: `₱${net.toLocaleString()}`,
+      status,
+      earnings: [
+        { label: 'Basic Salary', amount: earnings.basic },
+        { label: 'Overtime Pay', amount: earnings.overtime },
+        { label: 'Allowances', amount: earnings.allowances },
+        { label: 'Bonuses', amount: earnings.bonuses },
+      ],
+      deductionItems: [
+        { label: 'SSS Contribution', amount: deductions.sss },
+        { label: 'PhilHealth', amount: deductions.philhealth },
+        { label: 'Pag-IBIG', amount: deductions.pagibig },
+        { label: 'Withholding Tax', amount: deductions.tax },
+      ],
     })
   }
 
@@ -95,6 +114,15 @@ export default function EditPayrollModal({ entry, onClose, onSave }) {
             <input className="input" type="number" value={deductions.tax} onChange={updateDed('tax')} />
           </div>
         </div>
+      </div>
+
+      <div className="field" style={{ marginBottom: 16 }}>
+        <label>Payroll Status</label>
+        <select className="input" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <option value="PENDING">Pending</option>
+          <option value="PROCESSING">Processing</option>
+          <option value="PAID">Paid</option>
+        </select>
       </div>
 
       <div className="flex-between" style={{ borderTop: '1px solid var(--color-border)', paddingTop: 14, marginTop: 4 }}>

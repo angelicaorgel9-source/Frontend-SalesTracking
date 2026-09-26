@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ShoppingCart, CreditCard, Sparkles, Megaphone, Trash2, CheckCheck } from 'lucide-react'
 import EmployeeLayout from '../../layouts/EmployeeLayout.jsx'
-import { notifications as seedNotifications } from '../../data/employeeMockData.js'
 import { useToast } from '../../context/ToastContext.jsx'
+import { api } from '../../utils/api.js'
 
 const tabs = ['All', 'Orders', 'Payments', 'Promotions', 'Announcements']
 
@@ -16,7 +16,13 @@ const categoryIcon = {
 export default function Notifications() {
   const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState('All')
-  const [items, setItems] = useState(seedNotifications)
+  const [items, setItems] = useState([])
+
+  useEffect(() => {
+    api.getEmployeeNotifications()
+      .then((data) => setItems(Array.isArray(data) ? data : []))
+      .catch(() => setItems([]))
+  }, [])
 
   const filtered = activeTab === 'All' ? items : items.filter((n) => n.category === activeTab)
   const unreadCount = items.filter((n) => n.unread).length

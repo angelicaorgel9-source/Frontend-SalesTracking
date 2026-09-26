@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import Login from './pages/Login.jsx'
 import AdminLogin from './pages/admin/Login.jsx'
 import EmployeeLogin from './pages/employee/Login.jsx'
@@ -38,6 +38,29 @@ function CustomerRoute({ children }) {
   return localStorage.getItem('mjc:token') ? children : <Navigate to="/customer/signup" replace />
 }
 
+function EmployeeRoute({ children }) {
+  let user = null
+  try {
+    user = JSON.parse(localStorage.getItem('mje:user') || 'null')
+  } catch {
+    user = null
+  }
+  return localStorage.getItem('mje:token') && user?.role === 'EMPLOYEE' ? children : <Navigate to="/employee/login" replace />
+}
+
+function AdminRoute() {
+  let user = null
+  try {
+    user = JSON.parse(localStorage.getItem('mja:user') || 'null')
+  } catch {
+    user = null
+  }
+  const hasAdminAccess = user?.role === 'ADMIN' || user?.is_superuser
+  return localStorage.getItem('mja:token') && hasAdminAccess
+    ? <Outlet />
+    : <Navigate to="/admin/login" replace />
+}
+
 export default function App() {
   return (
     <Routes>
@@ -48,6 +71,7 @@ export default function App() {
       <Route path="/customer/login" element={<CustomerLogin />} />
 
       {/* ---------- Admin portal ---------- */}
+      <Route element={<AdminRoute />}>
       <Route
         path="/dashboard"
         element={<AdminProfileProvider><AdminDashboard /></AdminProfileProvider>}
@@ -88,31 +112,32 @@ export default function App() {
         path="/profile"
         element={<AdminProfileProvider><AdminProfile /></AdminProfileProvider>}
       />
+      </Route>
 
       {/* ---------- Employee portal ---------- */}
       <Route
         path="/employee/dashboard"
-        element={<EmployeeProfileProvider><EmployeeDashboard /></EmployeeProfileProvider>}
+        element={<EmployeeRoute><EmployeeProfileProvider><EmployeeDashboard /></EmployeeProfileProvider></EmployeeRoute>}
       />
       <Route
         path="/employee/orders"
-        element={<EmployeeProfileProvider><EmployeeOrders /></EmployeeProfileProvider>}
+        element={<EmployeeRoute><EmployeeProfileProvider><EmployeeOrders /></EmployeeProfileProvider></EmployeeRoute>}
       />
       <Route
         path="/employee/customers"
-        element={<EmployeeProfileProvider><EmployeeCustomers /></EmployeeProfileProvider>}
+        element={<EmployeeRoute><EmployeeProfileProvider><EmployeeCustomers /></EmployeeProfileProvider></EmployeeRoute>}
       />
       <Route
         path="/employee/payroll"
-        element={<EmployeeProfileProvider><EmployeePayroll /></EmployeeProfileProvider>}
+        element={<EmployeeRoute><EmployeeProfileProvider><EmployeePayroll /></EmployeeProfileProvider></EmployeeRoute>}
       />
       <Route
         path="/employee/notifications"
-        element={<EmployeeProfileProvider><EmployeeNotifications /></EmployeeProfileProvider>}
+        element={<EmployeeRoute><EmployeeProfileProvider><EmployeeNotifications /></EmployeeProfileProvider></EmployeeRoute>}
       />
       <Route
         path="/employee/profile"
-        element={<EmployeeProfileProvider><EmployeeProfile /></EmployeeProfileProvider>}
+        element={<EmployeeRoute><EmployeeProfileProvider><EmployeeProfile /></EmployeeProfileProvider></EmployeeRoute>}
       />
 
       {/* ---------- Customer portal ---------- */}

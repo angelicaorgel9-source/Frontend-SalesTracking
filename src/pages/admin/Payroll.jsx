@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Download, Plus, Search, Eye, Pencil } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout.jsx'
 import StatCard from '../../components/StatCard.jsx'
@@ -8,6 +8,7 @@ import EditPayrollModal from '../../components/admin/modals/EditPayrollModal.jsx
 import PayrollPreviewModal from '../../components/admin/modals/PayrollPreviewModal.jsx'
 import { downloadPdfReport } from '../../utils/pdf.js'
 import { useToast } from '../../context/ToastContext.jsx'
+import { api } from '../../utils/api.js'
 
 const statusBadge = {
   PAID: 'badge-success',
@@ -15,17 +16,67 @@ const statusBadge = {
   PROCESSING: 'badge-info',
 }
 
+const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+function formatPeriod(period) {
+  if (!period) return ''
+  const [year, month] = period.split('-').map(Number)
+  return new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}
+
+function toPayrollEntry(record) {
+  return {
+    recordId: record.id,
+    id: record.employee_username,
+    employeeId: record.employee_id,
+    name: record.employee_name,
+    branch: record.branch || 'Unassigned',
+    position: record.position,
+    period: formatPeriod(record.period),
+    periodValue: record.period,
+    earnings: record.earnings || [],
+    deductionItems: record.deductions || [],
+    gross: money(record.gross_total),
+    deductions: `-${money(record.deduction_total)}`,
+    net: money(record.net_total),
+    status: record.status,
+  }
+}
+
 export default function Payroll() {
   const { showToast } = useToast()
-  const [month, setMonth] = useState('November 2023')
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [branchFilter, setBranchFilter] = useState('All Branches')
   const [statusFilter, setStatusFilter] = useState('All Statuses')
   const [search, setSearch] = useState('')
 
-  const [entries, setEntries] = useState(seedEntries)
+  const [entries, setEntries] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showGenerate, setShowGenerate] = useState(false)
   const [editEntry, setEditEntry] = useState(null)
   const [previewEntry, setPreviewEntry] = useState(null)
+
+  const refreshPayroll = async () => {
+    try {
+      const records = await api.getAdminPayroll()
+      setEntries((records || []).map(toPayrollEntry))
+    } catch (error) {
+      showToast(error.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    refreshPayroll()
+  }, [])
+
+  const filteredEntries = entries.filter((entry) => (
+    (!month || entry.periodValue === month)
+    && (branchFilter === 'All Branches' || entry.branch === branchFilter)
+    && (statusFilter === 'All Statuses' || entry.status === statusFilter)
+    && (!search || entry.name.toLowerCase().includes(search.toLowerCase()) || entry.id.toLowerCase().includes(search.toLowerCase()))
+  ))
 
   const handleDownloadPayroll = () => {
     downloadPdfReport({
@@ -33,21 +84,45 @@ export default function Payroll() {
       heading: 'Payroll Report',
       subheading: `Period: ${month}  •  Branch: ${branchFilter}  •  Status: ${statusFilter}`,
       columns: ['Employee ID', 'Name', 'Branch', 'Position', 'Gross', 'Deductions', 'Net', 'Status'],
-      rows: entries.map((p) => [p.id, p.name, p.branch, p.position, p.gross, p.deductions, p.net, p.status]),
+      rows: filteredEntries.map((p) => [p.id, p.name, p.branch, p.position, p.gross, p.deductions, p.net, p.status]),
     })
     showToast('Payroll report downloaded', 'success')
   }
 
-  const handleGenerate = () => {
-    setShowGenerate(false)
-    showToast('Payroll generated successfully', 'success')
+  const handleGenerate = async ({ scope, employeeSearch, period }) => {
+    try {
+      const records = await api.generatePayroll({
+        scope,
+        employee: employeeSearch,
+        period: period || month,
+      })
+      await refreshPayroll()
+      setShowGenerate(false)
+      showToast(`${records.length} payroll record${records.length === 1 ? '' : 's'} ready for editing`, 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
   }
 
-  const handleSaveEdit = (updated) => {
-    setEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)))
-    setEditEntry(null)
-    showToast('Payroll details updated', 'success')
+  const handleSaveEdit = async (updated) => {
+    try {
+      const saved = await api.updateAdminPayroll(updated.recordId, {
+        earnings: updated.earnings,
+        deductions: updated.deductionItems,
+        status: updated.status,
+      })
+      const savedEntry = toPayrollEntry(saved)
+      setEntries((previous) => previous.map((entry) => (entry.recordId === savedEntry.recordId ? savedEntry : entry)))
+      setEditEntry(null)
+      showToast('Payroll details saved', 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
   }
+
+  const employeeCount = new Set(entries.map((entry) => entry.employeeId)).size
+  const pendingCount = entries.filter((entry) => entry.status === 'PENDING').length
+  const netTotal = entries.reduce((sum, entry) => sum + Number(entry.net.replace(/[^0-9.-]/g, '')), 0)
 
   return (
     <AdminLayout
@@ -62,17 +137,17 @@ export default function Payroll() {
       }}
     >
       <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        <StatCard label="Total Employees" value="142" />
-        <StatCard label="Payroll Generated" value="Nov 2023" />
-        <StatCard label="Pending Payroll" value="3" />
-        <StatCard label="Total Payroll Amount" value="₱1,245,000" />
+        <StatCard label="Employees in Payroll" value={String(employeeCount)} />
+        <StatCard label="Payroll Generated" value={entries[0]?.period || 'None'} />
+        <StatCard label="Pending Payroll" value={String(pendingCount)} />
+        <StatCard label="Total Net Payroll" value={money(netTotal)} />
       </div>
 
       <div className="card card-pad mb-16">
         <div className="two-col" style={{ gridTemplateColumns: 'repeat(5, 1fr)', alignItems: 'end', gap: 12 }}>
           <div className="field" style={{ marginBottom: 0 }}>
             <label>Month &amp; Year</label>
-            <input className="input" type="text" value={month} onChange={(e) => setMonth(e.target.value)} />
+            <input className="input" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
             <label>Branch Code</label>
@@ -86,9 +161,9 @@ export default function Payroll() {
             <label>Payroll Status</label>
             <select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option>All Statuses</option>
-              <option>Paid</option>
-              <option>Pending</option>
-              <option>Processing</option>
+              <option value="PAID">Paid</option>
+              <option value="PENDING">Pending</option>
+              <option value="PROCESSING">Processing</option>
             </select>
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
@@ -100,7 +175,7 @@ export default function Payroll() {
           </div>
           <div className="flex-row gap-8">
             <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => showToast('Filters applied', 'info')}>Search</button>
-            <button className="btn btn-outline" onClick={() => { setMonth('November 2023'); setBranchFilter('All Branches'); setStatusFilter('All Statuses'); setSearch('') }}>Reset</button>
+            <button className="btn btn-outline" onClick={() => { setMonth(new Date().toISOString().slice(0, 7)); setBranchFilter('All Branches'); setStatusFilter('All Statuses'); setSearch('') }}>Reset</button>
           </div>
         </div>
       </div>
@@ -122,9 +197,7 @@ export default function Payroll() {
               </tr>
             </thead>
             <tbody>
-              {entries
-                .filter((p) => (search ? (p.name.toLowerCase().includes(search.toLowerCase()) || p.id.toLowerCase().includes(search.toLowerCase())) : true))
-                .map((p) => (
+              {filteredEntries.map((p) => (
                   <tr key={p.id} className="row-clickable" onClick={() => setPreviewEntry(p)}>
                     <td className="cell-primary" style={{ color: 'var(--color-primary)' }}>{p.id}</td>
                     <td className="cell-primary">{p.name}</td>
@@ -137,36 +210,20 @@ export default function Payroll() {
                     <td onClick={(e) => e.stopPropagation()}>
                       <div className="flex-row gap-8">
                         <button className="icon-btn" style={{ border: 'none' }} onClick={() => setPreviewEntry(p)}><Eye size={15} /></button>
-                        {p.status !== 'PAID' && (
-                          <button className="icon-btn" style={{ border: 'none' }} onClick={() => setEditEntry(p)}><Pencil size={15} /></button>
-                        )}
-                        {p.status === 'PAID' && (
-                          <button
-                            className="icon-btn"
-                            style={{ border: 'none' }}
-                            onClick={() => {
-                              downloadPdfReport({
-                                filename: `Payroll-${p.id}.pdf`,
-                                heading: `Payroll Summary — ${p.name}`,
-                                subheading: `Branch: ${p.branch}  •  Position: ${p.position}  •  Status: ${p.status}`,
-                                columns: ['Item', 'Amount'],
-                                rows: [['Gross Salary', p.gross], ['Deductions', p.deductions], ['Net Salary', p.net]],
-                              })
-                              showToast('Payslip downloaded', 'success')
-                            }}
-                          >
-                            <Download size={15} />
-                          </button>
-                        )}
+                        <button className="icon-btn" style={{ border: 'none' }} onClick={() => setEditEntry(p)}><Pencil size={15} /></button>
                       </div>
                     </td>
                   </tr>
                 ))}
+              {!loading && filteredEntries.length === 0 && (
+                <tr><td colSpan={9} className="text-secondary" style={{ textAlign: 'center', padding: 24 }}>No payroll records match this period and filter.</td></tr>
+              )}
+              {loading && <tr><td colSpan={9} className="text-secondary" style={{ textAlign: 'center', padding: 24 }}>Loading payroll records...</td></tr>}
             </tbody>
           </table>
         </div>
         <div className="card-pad flex-between">
-          <span className="section-sub">Showing 1 to 5 of 142 entries</span>
+          <span className="section-sub">Showing {filteredEntries.length} payroll record{filteredEntries.length === 1 ? '' : 's'}</span>
           <div className="pagination">
             <button className="page-nav">Prev</button>
             <button className="page-num active">1</button>
@@ -180,7 +237,7 @@ export default function Payroll() {
       </div>
 
       {showGenerate && (
-        <GeneratePayrollModal onClose={() => setShowGenerate(false)} onGenerate={handleGenerate} />
+        <GeneratePayrollModal onClose={() => setShowGenerate(false)} onGenerate={handleGenerate} initialPeriod={month} />
       )}
 
       {editEntry && (

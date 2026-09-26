@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ClipboardList, HandCoins, UserPlus2, AlertTriangle, RefreshCcw,
@@ -8,9 +8,9 @@ import EmployeeLayout from '../../layouts/EmployeeLayout.jsx'
 import StatCard from '../../components/StatCard.jsx'
 import FullQueueModal from '../../components/employee/modals/FullQueueModal.jsx'
 import ActivityHistoryModal from '../../components/employee/modals/ActivityHistoryModal.jsx'
-import { productionQueue, activityLog } from '../../data/employeeMockData.js'
 import { useEmployeeProfile } from '../../context/EmployeeProfileContext.jsx'
 import { useToast } from '../../context/ToastContext.jsx'
+import { api } from '../../utils/api.js'
 
 const statusBadge = {
   Queued: 'badge-neutral',
@@ -35,15 +35,38 @@ const typeColor = {
 
 const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
+const formatCurrency = (value) => new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  maximumFractionDigits: 0,
+}).format(Number(value || 0))
+
 export default function Dashboard() {
   const navigate = useNavigate()
   const { profile } = useEmployeeProfile()
   const { showToast } = useToast()
   const [showQueue, setShowQueue] = useState(false)
   const [showActivity, setShowActivity] = useState(false)
+  const [stats, setStats] = useState({ assigned_jobs: 0, new_sales_today: 0, registered_customers: 0 })
+  const [pendingJobs, setPendingJobs] = useState([])
+  const [activityLog, setActivityLog] = useState([])
 
-  const firstName = profile.name.split(' ')[0]
-  const visibleJobs = productionQueue.slice(0, 4)
+  useEffect(() => {
+    api.getEmployeeDashboard()
+      .then((data) => {
+        setStats(data?.stats || { assigned_jobs: 0, new_sales_today: 0, registered_customers: 0 })
+        setPendingJobs(data?.pending_jobs || [])
+        setActivityLog(data?.activity || [])
+      })
+      .catch(() => {
+        setStats({ assigned_jobs: 0, new_sales_today: 0, registered_customers: 0 })
+        setPendingJobs([])
+        setActivityLog([])
+      })
+  }, [])
+
+  const firstName = profile?.name?.split(' ')[0] || 'Employee'
+  const visibleJobs = pendingJobs.slice(0, 4)
   const visibleActivity = activityLog.slice(0, 5)
 
   return (
@@ -73,13 +96,13 @@ export default function Dashboard() {
         <div>
           <div className="three-col mb-20">
             <div className="clickable" onClick={() => navigate('/employee/orders')}>
-              <StatCard icon={ClipboardList} label="Assigned Jobs" value="12" sub="+4 vs yesterday · 3 urgent deadlines" subDirection="up" />
+              <StatCard icon={ClipboardList} label="Assigned Jobs" value={String(stats.assigned_jobs || 0)} sub="Live production queue" subDirection="up" />
             </div>
             <div className="clickable" onClick={() => navigate('/employee/orders')}>
-              <StatCard icon={HandCoins} label="New Sales Today" value="₱4,280" sub="On target · 18 new orders placed" subDirection="up" />
+              <StatCard icon={HandCoins} label="New Sales Today" value={formatCurrency(stats.new_sales_today)} sub="Live store revenue" subDirection="up" />
             </div>
             <div className="clickable" onClick={() => navigate('/employee/customers')}>
-              <StatCard icon={UserPlus} label="Registered Customers" value="842" sub="Last 24h · 7 accounts pending approval" />
+              <StatCard icon={UserPlus} label="Registered Customers" value={String(stats.registered_customers || 0)} sub="Active customer accounts" />
             </div>
           </div>
 
@@ -117,6 +140,11 @@ export default function Dashboard() {
                       </td>
                     </tr>
                   ))}
+                  {visibleJobs.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="text-secondary" style={{ textAlign: 'center', padding: 18 }}>No active jobs yet.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -149,6 +177,9 @@ export default function Dashboard() {
               </div>
             )
           })}
+          {visibleActivity.length === 0 && (
+            <div className="cell-sub" style={{ padding: '10px 0' }}>No recent activity available.</div>
+          )}
           <button className="btn btn-outline btn-sm btn-full" style={{ marginTop: 12 }} onClick={() => setShowActivity(true)}>
             Show More
           </button>

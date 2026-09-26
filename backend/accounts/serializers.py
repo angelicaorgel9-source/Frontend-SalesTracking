@@ -6,9 +6,24 @@ from .models import User
 class UserSerializer(serializers.ModelSerializer):
     """Read-only view of a user — used in login response & employee list."""
 
+    is_superuser = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'name', 'email', 'phone', 'role', 'is_active', 'two_factor_enabled', 'created_at']
+        fields = ['id', 'username', 'name', 'email', 'phone', 'role', 'is_active', 'is_superuser', 'two_factor_enabled', 'created_at']
+
+
+class CustomerProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['name', 'phone', 'two_factor_enabled']
+
+    def validate(self, attrs):
+        restricted_fields = {'role', 'is_active', 'is_staff', 'is_superuser', 'username'}
+        attempted_fields = restricted_fields.intersection(self.initial_data)
+        if attempted_fields:
+            raise serializers.ValidationError({field: 'This field cannot be changed here.' for field in attempted_fields})
+        return attrs
 
 
 class CustomerSignupSerializer(serializers.ModelSerializer):

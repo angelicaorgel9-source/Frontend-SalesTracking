@@ -52,7 +52,7 @@ export default function Login({ portal = 'customer' }) {
     if (verification) {
       try {
         const session = await api.verifyLogin({ verification_id: verification.verification_id, code: verificationCode, device_id: getDeviceId() })
-        saveSession(session)
+        saveSession(session, 'customer')
         navigate('/customer/home')
       } catch (error) {
         setLoginError(error.message)
@@ -67,7 +67,7 @@ export default function Login({ portal = 'customer' }) {
           setVerification(session)
         } else {
           if (session.user.role !== 'CUSTOMER') throw new Error('This account is not a customer account.')
-          saveSession(session)
+          saveSession(session, 'customer')
           navigate('/customer/home')
         }
       } catch (error) {
@@ -76,9 +76,24 @@ export default function Login({ portal = 'customer' }) {
       return
     }
 
-    const targetPortal = portal === 'admin' ? 'admin' : portal === 'employee' ? 'employee' : resolvePortal(username)
-    if (targetPortal === 'admin') navigate('/dashboard')
-    else if (targetPortal === 'employee') navigate('/employee/dashboard')
+    try {
+      const session = await api.login({ username: username.trim(), password })
+      const userRole = session.user?.role
+
+      if (portal === 'admin' && userRole !== 'ADMIN' && !session.user?.is_superuser) {
+        throw new Error('This account is not an admin account.')
+      }
+
+      if (portal === 'employee' && userRole !== 'EMPLOYEE') {
+        throw new Error('This account is not an employee account.')
+      }
+
+      saveSession(session, portal)
+      if (portal === 'admin') navigate('/dashboard')
+      else navigate('/employee/dashboard')
+    } catch (error) {
+      setLoginError(error.message)
+    }
   }
 
   const handleResend = async () => {

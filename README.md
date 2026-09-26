@@ -1,27 +1,36 @@
-# MJ Prints - Admin Portal (Front End)
+# MJ Prints Sales Tracking
 
-A React + Vite front end for the MJ Prints sales tracking system, admin access only.
-This is UI only (no backend) — every screen uses local mock data so you can click through
-the whole app: Login, Dashboard, Orders, Inventory, Customers, Analytics, Settings,
-User Management (with the "generate credentials" modal), and Payroll.
+React + Vite frontend with a Django REST backend. Customer authentication, products,
+orders, tracking, profiles, notifications, and payroll use backend APIs. Some admin
+and employee screens still contain demo data.
 
-## Run it in VS Code
+## Run Locally
 
-1. Open this folder (`mj-prints-admin`) in VS Code.
-2. Open a terminal (Terminal → New Terminal) and install dependencies:
-   ```
-   npm install
-   ```
-3. Start the dev server:
-   ```
-   npm run dev
-   ```
-4. Open the printed URL (usually `http://localhost:5173`) in your browser.
+Start Django in one terminal:
 
-## Login
+```powershell
+cd backend
+python manage.py migrate
+python manage.py runserver 8001
+```
 
-The login screen is UI-only. Type anything in Username/Password and click **Login** to
-enter the admin portal (there's no real authentication).
+Create an admin login when needed with `python manage.py createsuperuser`.
+
+In a second terminal, start the frontend:
+
+```powershell
+npm install
+npm run dev
+```
+
+Open the URL printed by Vite (usually `http://localhost:5173`). The frontend uses
+`http://127.0.0.1:8001/api` by default. Set `VITE_API_URL` to override it.
+
+Customer signup, login verification, and Mongo-backed address/notification features
+require the MongoDB and SMS environment settings documented in `backend/config/settings.py`.
+
+Admin, employee, and customer portals use their respective login routes. Admin users
+manage payroll records; employees see payroll belonging to their own account.
 
 ## Structure
 

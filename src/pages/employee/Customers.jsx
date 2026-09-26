@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Users, UserPlus2, Package, UserX, Download, Plus, Search, Pencil, Ban, CheckCircle2 } from 'lucide-react'
 import EmployeeLayout from '../../layouts/EmployeeLayout.jsx'
 import StatCard from '../../components/StatCard.jsx'
@@ -6,21 +6,61 @@ import ActionMenu from '../../components/ActionMenu.jsx'
 import CustomerDetailsModal from '../../components/employee/modals/CustomerDetailsModal.jsx'
 import EditCustomerModal from '../../components/employee/modals/EditCustomerModal.jsx'
 import NewClientModal from '../../components/employee/modals/NewClientModal.jsx'
-import { customerRegistry as seedRegistry } from '../../data/employeeMockData.js'
 import { useToast } from '../../context/ToastContext.jsx'
 import { downloadCsv } from '../../utils/csv.js'
+import { api } from '../../utils/api.js'
 
 const tabs = ['All', 'Active', 'Inactive']
 
 export default function Customers() {
   const { showToast } = useToast()
-  const [registry, setRegistry] = useState(seedRegistry)
+  const [registry, setRegistry] = useState([])
   const [tab, setTab] = useState('All')
   const [search, setSearch] = useState('')
 
   const [viewCustomer, setViewCustomer] = useState(null)
   const [editCustomer, setEditCustomer] = useState(null)
   const [showNewClient, setShowNewClient] = useState(false)
+
+  useEffect(() => {
+    let isActive = true
+    const refreshCustomers = async () => {
+      try {
+        const data = await api.getEmployeeCustomers()
+        if (!isActive) return
+        const refreshed = (data || []).map((customer) => ({
+          ...customer,
+          initials: (customer.name || 'NC').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+          company: customer.company || 'Walk-in Client',
+          orders: Number(customer.orders || 0),
+          spend: customer.spend || '₱0.00',
+          lastDate: customer.lastDate || '—',
+          status: customer.status === 'Inactive' ? 'Inactive' : 'Active',
+        }))
+        const backendIds = new Set(refreshed.map((customer) => String(customer.id)))
+        setRegistry((current) => {
+          const currentById = new Map(current.map((customer) => [String(customer.id), customer]))
+          const updated = refreshed.map((customer) => {
+            const existing = currentById.get(String(customer.id))
+            return existing
+              ? { ...existing, orders: customer.orders, spend: customer.spend, lastDate: customer.lastDate }
+              : customer
+          })
+          const localCustomers = current.filter((customer) => customer.localOnly && !backendIds.has(String(customer.id)))
+          return [...updated, ...localCustomers]
+        })
+      } catch {
+        // Keep the last successful result visible if the API is temporarily unavailable.
+      }
+    }
+
+    refreshCustomers()
+    const refreshInterval = window.setInterval(refreshCustomers, 15000)
+    return () => {
+      isActive = false
+      window.clearInterval(refreshInterval)
+    }
+  }, [])
 
   const totalCustomers = registry.length
   const activeCount = registry.filter((c) => c.status === 'Active').length
@@ -51,10 +91,10 @@ export default function Customers() {
   }
 
   const handleSaveNewClient = (form) => {
-    const nextId = Math.max(0, ...registry.map((c) => c.id)) + 1
     const initials = form.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'NC'
     setRegistry((prev) => [{
-      id: nextId,
+      id: `local-${Date.now()}`,
+      localOnly: true,
       initials,
       name: form.fullName,
       company: form.address || 'Walk-in Client',
