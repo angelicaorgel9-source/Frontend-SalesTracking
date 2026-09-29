@@ -18,6 +18,14 @@ class User(AbstractUser):
     name = models.CharField(max_length=150, blank=True)
     phone = models.CharField(max_length=30, blank=True)
     two_factor_enabled = models.BooleanField(default=True)
+    branch = models.ForeignKey(
+        'branches.Branch',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='employees',
+        help_text='Which shop this employee works at. Left blank until an admin assigns it.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

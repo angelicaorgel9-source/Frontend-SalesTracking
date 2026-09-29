@@ -1,7 +1,6 @@
 from django.urls import path
 
 from .views import (
-    CustomerBranchesView,
     CustomerAddressesView,
     CustomerNotificationsView,
     CustomerProfileView,
@@ -22,7 +21,6 @@ urlpatterns = [
     path('customers/signup/', CustomerSignupView.as_view(), name='customer-signup'),
     path('customers/me/', CustomerProfileView.as_view(), name='customer-profile'),
     path('customers/addresses/', CustomerAddressesView.as_view(), name='customer-addresses'),
-    path('branches/', CustomerBranchesView.as_view(), name='customer-branches'),
     path('notifications/customers/', CustomerNotificationsView.as_view(), name='customer-notifications'),
     path('employees/', EmployeeListCreateView.as_view(), name='employee-list-create'),
     path('employees/dashboard/', EmployeeDashboardView.as_view(), name='employee-dashboard'),

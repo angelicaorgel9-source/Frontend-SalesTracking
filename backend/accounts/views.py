@@ -379,13 +379,6 @@ class CustomerAddressesView(APIView):
         return Response({key: value for key, value in address.items() if key not in ('_id', 'customerId', 'customerEmail')}, status=201)
 
 
-class CustomerBranchesView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        return Response([])
-
-
 class CustomerNotificationsView(APIView):
     permission_classes = [IsAuthenticated]
 

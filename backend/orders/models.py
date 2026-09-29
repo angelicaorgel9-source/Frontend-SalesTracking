@@ -39,6 +39,7 @@ class Order(models.Model):
     ]
 
     transaction_id = models.CharField(max_length=20, unique=True, default=generate_transaction_id, editable=False)
+    branch = models.ForeignKey('branches.Branch', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders')
     customer_name = models.CharField(max_length=150)
     customer_phone = models.CharField(max_length=30)
     customer_email = models.EmailField(blank=True, null=True)

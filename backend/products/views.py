@@ -3,10 +3,10 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.conf import settings
 
-from accounts.permissions import IsAdmin
+from accounts.permissions import IsAdmin, IsAdminOrEmployee
 from config.mongodb import get_mongo_database
-from .models import Product
-from .serializers import ProductSerializer
+from .models import Inventory, Product
+from .serializers import InventorySerializer, ProductSerializer
 
 
 class ProductListCreateView(generics.ListCreateAPIView):
@@ -53,4 +53,45 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         if self.request.method == 'GET':
             return [AllowAny()]
+        return [IsAdmin()]
+
+
+class InventoryListCreateView(generics.ListCreateAPIView):
+    """
+    GET  /api/inventory/?branch=<id>  -> staff only, current stock (optionally
+         filtered to one branch, which is how the POS/inventory screen for a
+         given shop would use this)
+    POST /api/inventory/              -> admin only, set up a product's
+         starting stock at a branch
+    """
+
+    serializer_class = InventorySerializer
+
+    def get_queryset(self):
+        queryset = Inventory.objects.select_related('branch', 'product')
+        branch_id = self.request.query_params.get('branch')
+        if branch_id:
+            queryset = queryset.filter(branch_id=branch_id)
+        return queryset
+
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsAdmin()]
+        return [IsAdminOrEmployee()]
+
+
+class InventoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET             /api/inventory/<id>/  -> staff (e.g. after a sale, check
+                    remaining stock)
+    PATCH/DELETE    /api/inventory/<id>/  -> admin only (restock, correct a
+                    count, or remove an item from a branch's inventory)
+    """
+
+    queryset = Inventory.objects.select_related('branch', 'product')
+    serializer_class = InventorySerializer
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [IsAdminOrEmployee()]
         return [IsAdmin()]

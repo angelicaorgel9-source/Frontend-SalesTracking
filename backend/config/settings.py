@@ -15,14 +15,16 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR.parent / '.env')
 
-# s
+# Security settings read from environment variables (.env), with safe
+# defaults for local development so nothing breaks if they're unset.
+# For real deployment, set SECRET_KEY, DEBUG=False, ALLOWED_HOSTS and
+# CORS_ALLOWED_ORIGINS as actual environment variables on the host —
+# never hardcode production secrets in this file.
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-mjprints-dev-key-change-before-deploying')
 
-SECRET_KEY = 'django-insecure-mjprints-dev-key-change-before-deploying'
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-
-DEBUG = True
-
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', '*').split(',') if h.strip()]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -37,6 +39,7 @@ INSTALLED_APPS = [
     'corsheaders',
 
     'accounts',
+    'branches',
     'products',
     'orders',
     'payroll',
@@ -112,9 +115,15 @@ REST_FRAMEWORK = {
     ],
 }
 
-# CORS
-
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS — wide open by default (fine for local development). To restrict
+# in a real deployment, set CORS_ALLOWED_ORIGINS in the environment as a
+# comma-separated list (e.g. "https://mjprints.com") and this will switch
+# to allowing only those origins automatically.
+_cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', '')
+if _cors_origins:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_origins.split(',') if origin.strip()]
+else:
+    CORS_ALLOW_ALL_ORIGINS = True
 
 # MongoDB application-data connection. Keep the URI in the environment; never
 # commit credentials to this file or to a .env file tracked by git.

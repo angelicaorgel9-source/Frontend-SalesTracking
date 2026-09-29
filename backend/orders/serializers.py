@@ -18,10 +18,11 @@ class OrderSerializer(serializers.ModelSerializer):
   
 
     items = OrderItemSerializer(many=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True, default=None)
 
     class Meta:
         model = Order
-        fields = ['id', 'transaction_id', 'customer_name', 'customer_phone', 'customer_email',
+        fields = ['id', 'transaction_id', 'branch', 'branch_name', 'customer_name', 'customer_phone', 'customer_email',
                   'status', 'payment_method', 'total_amount', 'created_by', 'created_at',
                   'updated_at', 'estimated_completion', 'items']
         read_only_fields = ['transaction_id', 'total_amount', 'created_by', 'created_at', 'updated_at']
@@ -67,9 +68,9 @@ class OrderSerializer(serializers.ModelSerializer):
 
 class OrderTrackSerializer(serializers.ModelSerializer):
    
-
     items = OrderItemSerializer(many=True, read_only=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True, default=None)
 
     class Meta:
         model = Order
-        fields = ['transaction_id', 'status', 'created_at', 'estimated_completion', 'items']
+        fields = ['transaction_id', 'branch_name', 'status', 'created_at', 'estimated_completion', 'items']

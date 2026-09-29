@@ -4,7 +4,7 @@ import random
 import string
 
 from django.conf import settings
-from django.db.models import Sum
+from django.db.models import Count, Sum
 from django.utils import timezone
 from rest_framework import generics
 from rest_framework.permissions import AllowAny
@@ -242,7 +242,11 @@ class OrderTrackView(generics.RetrieveAPIView):
 
 
 class SalesSummaryView(APIView):
-   
+    """
+    GET /api/sales/summary/  -> today's and this-week's totals (staff only),
+    plus a per-branch breakdown so each shop's numbers can be seen separately.
+    Cancelled orders are excluded from the totals.
+    """
 
     permission_classes = [IsAdminOrEmployee]
 
@@ -255,9 +259,27 @@ class SalesSummaryView(APIView):
         daily_qs = base_qs.filter(created_at__gte=today_start)
         weekly_qs = base_qs.filter(created_at__gte=week_start)
 
+        def by_branch(queryset):
+            rows = (
+                queryset.values('branch__id', 'branch__name')
+                .annotate(total=Sum('total_amount'), order_count=Count('id'))
+                .order_by('branch__name')
+            )
+            return [
+                {
+                    'branch_id': row['branch__id'],
+                    'branch_name': row['branch__name'] or 'Unassigned',
+                    'total': row['total'] or 0,
+                    'order_count': row['order_count'],
+                }
+                for row in rows
+            ]
+
         return Response({
             'daily_total': daily_qs.aggregate(total=Sum('total_amount'))['total'] or 0,
             'daily_order_count': daily_qs.count(),
             'weekly_total': weekly_qs.aggregate(total=Sum('total_amount'))['total'] or 0,
             'weekly_order_count': weekly_qs.count(),
+            'daily_by_branch': by_branch(daily_qs),
+            'weekly_by_branch': by_branch(weekly_qs),
         })
