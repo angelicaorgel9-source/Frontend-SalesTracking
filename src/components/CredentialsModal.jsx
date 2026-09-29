@@ -12,8 +12,8 @@ export default function CredentialsModal({ credentials, onClose, onSave }) {
       <div className="modal-box" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3>Employee Account Credentials</h3>
-            <p>The employee account has been generated successfully. Please copy and save the credentials before closing this window.</p>
+            <h3>{credentials.title || 'Account Credentials'}</h3>
+            <p>{credentials.description || 'Copy and securely share the credentials before closing this window.'}</p>
           </div>
           <button className="modal-close" onClick={onClose}>
             <X size={18} />
@@ -36,7 +36,7 @@ export default function CredentialsModal({ credentials, onClose, onSave }) {
 
           <div className="info-note">
             <Info />
-            This Credentials are generated automatically. The employee should change the temporary password after their first login.
+            The password is temporary. Ask the account holder to change it after signing in.
           </div>
 
           <div className="modal-actions">

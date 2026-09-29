@@ -1,15 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ShoppingBag, UserCheck, DollarSign, Download, Upload, Plus, ChevronDown, LayoutGrid, List, Pencil, Eye } from 'lucide-react'
+import { ShoppingBag, UserCheck, DollarSign, Download, Plus, ChevronDown, LayoutGrid, List, Pencil, Eye } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout.jsx'
 import StatCard from '../../components/StatCard.jsx'
 import ActionMenu from '../../components/ActionMenu.jsx'
-import ConfirmModal from '../../components/ConfirmModal.jsx'
 import AddOrderModal from '../../components/admin/modals/AddOrderModal.jsx'
 import EditOrderModal from '../../components/admin/modals/EditOrderModal.jsx'
 import ViewOrderModal from '../../components/admin/modals/ViewOrderModal.jsx'
-import { orders as seedOrders } from '../../data/adminMockData.js'
 import { useToast } from '../../context/ToastContext.jsx'
+import { api } from '../../utils/api.js'
+import { downloadCsv } from '../../utils/csv.js'
 
 const statusBadge = {
   warning: 'badge-warning',
@@ -20,15 +20,17 @@ const statusBadge = {
 
 let draftIdCounter = 1
 
-const statusOptions = ['All Statuses', 'Pending Proof', 'Printing', 'Completed', 'Shipped']
-const branchOptions = ['All Branches', 'Baliuag', 'Tangos']
-const dateOptions = ['mm/dd/yyyy', 'Today', 'This Week', 'This Month']
+const statusOptions = ['All Statuses', 'Pending Proof', 'In Production', 'Printing', 'Review', 'Completed', 'Cancelled', 'Shipped']
+const branchOptions = ['All Branches']
+const dateOptions = ['All Dates', 'Today', 'This Week', 'This Month']
 
 export default function Orders() {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const [view, setView] = useState('list')
-  const [orders, setOrders] = useState(seedOrders)
+  const [orders, setOrders] = useState([])
+  const [products, setProducts] = useState([])
+  const [branches, setBranches] = useState([])
   const [statFilter, setStatFilter] = useState(null)
   const [statusFilter, setStatusFilter] = useState(statusOptions[0])
   const [branchFilter, setBranchFilter] = useState(branchOptions[0])
@@ -43,33 +45,59 @@ export default function Orders() {
   const [editingDraft, setEditingDraft] = useState(null)
   const [drafts, setDrafts] = useState([])
 
-  const [showBulkImport, setShowBulkImport] = useState(false)
-  const [importing, setImporting] = useState(false)
 
   const [editOrder, setEditOrder] = useState(null)
   const [viewOrder, setViewOrder] = useState(null)
 
-  const handleSubmitOrder = (order) => {
-    const newOrder = {
-      id: `ORD-2023-${Math.floor(Math.random() * 9000) + 1000}`,
-      minutesAgo: 'Just now',
-      customer: order.customer.name,
-      initials: order.customer.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'NC',
-      email: order.customer.email,
-      project: 'Custom T-Shirt Order',
-      details: `(${order.quantity} units) Size ${order.size}, Screen Printing`,
-      branch: 'Baliuag',
-      status: 'Pending Proof',
-      statusType: 'warning',
-      value: `₱${order.total.toLocaleString()}.00`,
+  const refreshOrders = async () => {
+    const records = await api.getOrders()
+    setOrders(records.map((order) => {
+      const item = order.items?.[0]
+      const status = { PLACED: 'Pending Proof', DESIGNING: 'In Production', PRINTING: 'Printing', READY: 'Shipped', COMPLETED: 'Completed', CANCELLED: 'Cancelled' }[order.status] || order.status
+      return {
+        ...order,
+        id: order.transaction_id,
+        minutesAgo: order.created_at ? new Date(order.created_at).toLocaleString() : '—',
+        customer: order.customer_name,
+        initials: (order.customer_name || 'NC').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+        email: order.customer_email || '',
+        project: item?.product_name || item?.item_name || 'Print Order',
+        details: `${order.items?.reduce((sum, row) => sum + Number(row.quantity || 0), 0) || 0} unit(s)`,
+        branch: order.branch_name || 'Unassigned',
+        status,
+        statusType: order.status === 'COMPLETED' ? 'success' : order.status === 'PRINTING' || order.status === 'DESIGNING' ? 'danger' : 'warning',
+        backendStatus: order.status,
+        value: `₱${Number(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+        totalAmount: Number(order.total_amount || 0),
+      }
+    }))
+  }
+
+  useEffect(() => {
+    Promise.all([refreshOrders(), api.getProducts().then(setProducts), api.getBranches().then(setBranches)])
+      .catch((error) => showToast(error.message, 'error'))
+  }, [showToast])
+
+  const handleSubmitOrder = async (order) => {
+    try {
+      const saved = await api.createOrder({
+        branch: order.branchId,
+        branch_id: order.branchId,
+        branch_code: order.branchCode,
+        customer_name: order.customer.name,
+        customer_phone: order.customer.contact,
+        customer_email: order.customer.email,
+        payment_method: order.payment.toUpperCase() === 'GCASH' ? 'GCASH' : 'CASH',
+        items: [{ product: order.productId, item_name: order.productName, quantity: order.quantity, unit_price: order.unitPrice, specifications: `Size ${order.size}; color ${order.color}` }],
+      })
+      await refreshOrders()
+      if (editingDraft) setDrafts((prev) => prev.filter((draft) => draft.id !== editingDraft.id))
+      setShowAddOrder(false)
+      setEditingDraft(null)
+      showToast(`Order ${saved.transaction_id} created`, 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
     }
-    setOrders((prev) => [newOrder, ...prev])
-    if (editingDraft) {
-      setDrafts((prev) => prev.filter((d) => d.id !== editingDraft.id))
-    }
-    setShowAddOrder(false)
-    setEditingDraft(null)
-    showToast('Order created successfully', 'success')
   }
 
   const handleSaveDraft = (order) => {
@@ -95,30 +123,21 @@ export default function Orders() {
     showToast('Draft removed', 'info')
   }
 
-  const handleConfirmImport = () => {
-    setImporting(true)
-    setTimeout(() => {
-      setImporting(false)
-      setShowBulkImport(false)
-      const success = Math.random() > 0.2
-      showToast(
-        success ? 'Order import completed successfully' : 'Order import failed. Please review the file and try again.',
-        success ? 'success' : 'error',
-      )
-    }, 900)
-  }
-
-  const handleSaveEditOrder = (updated) => {
-    setOrders((prev) => prev.map((o) => (o.id === updated.id ? {
-      ...o,
-      customer: updated.customerName,
-      project: updated.project,
-      status: updated.status,
-      branch: updated.branch,
-      value: updated.value ? `₱${updated.value}` : o.value,
-    } : o)))
-    setEditOrder(null)
-    showToast('Order updated successfully', 'success')
+  const handleSaveEditOrder = async (updated) => {
+    try {
+      const status = { 'Pending Proof': 'PLACED', Printing: 'PRINTING', 'In Production': 'DESIGNING', Completed: 'COMPLETED', Shipped: 'READY' }[updated.status]
+      await api.updateStaffOrder(updated.id, {
+        customer_name: updated.customerName,
+        status,
+        estimated_completion: updated.dueDate || null,
+        total_amount: Number(updated.value || 0),
+      })
+      await refreshOrders()
+      setEditOrder(null)
+      showToast('Order updated successfully', 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
   }
 
   const filteredOrders = orders.filter((o) => {
@@ -126,9 +145,32 @@ export default function Orders() {
       || o.status === statusFilter
       || (statusFilter === 'All Statuses' && true)
     const branchMatch = branchFilter === branchOptions[0] || o.branch === branchFilter
-    const statMatch = statFilter === 'pending' ? o.statusType === 'warning' : true
-    return statusMatch && branchMatch && statMatch
+    const statMatch = statFilter === 'pending' ? o.backendStatus === 'PLACED' : true
+    const createdAt = o.created_at ? new Date(o.created_at) : null
+    const now = new Date()
+    const weekStart = new Date(now)
+    weekStart.setHours(0, 0, 0, 0)
+    weekStart.setDate(now.getDate() - now.getDay())
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const dateMatch = dateFilter === 'All Dates'
+      || (dateFilter === 'Today' && createdAt?.toDateString() === now.toDateString())
+      || (dateFilter === 'This Week' && createdAt >= weekStart)
+      || (dateFilter === 'This Month' && createdAt >= monthStart)
+    return statusMatch && branchMatch && statMatch && dateMatch
   })
+  const today = new Date().toDateString()
+  const todayOrders = orders.filter((order) => order.created_at && new Date(order.created_at).toDateString() === today)
+  const pendingProofs = orders.filter((order) => order.backendStatus === 'PLACED')
+  const dailyRevenue = todayOrders.filter((order) => order.backendStatus !== 'CANCELLED').reduce((sum, order) => sum + Number(order.totalAmount || 0), 0)
+
+  const exportOrders = () => {
+    downloadCsv({
+      filename: 'orders.csv',
+      columns: ['Transaction ID', 'Customer', 'Email', 'Branch', 'Status', 'Total', 'Created At'],
+      rows: filteredOrders.map((order) => [order.id, order.customer, order.email, order.branch, order.status, order.totalAmount, order.created_at]),
+    })
+    showToast('Orders exported', 'success')
+  }
 
   useEffect(() => {
     const onMove = (e) => {
@@ -222,6 +264,7 @@ export default function Orders() {
                 <label>Branch</label>
                 <select className="input" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
                   {branchOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+                  {branches.map((branch) => <option key={branch.id} value={branch.name}>{branch.name}</option>)}
                 </select>
               </div>
               <div className="field">
@@ -249,21 +292,20 @@ export default function Orders() {
 
       <div className="three-col mb-20">
         <div className="clickable" onClick={() => setStatFilter(null)}>
-          <StatCard icon={ShoppingBag} label="Orders Today" value="142" sub="↑ 12% from yesterday" subDirection="up" />
+          <StatCard icon={ShoppingBag} label="Orders Today" value={String(todayOrders.length)} sub="Live order count" />
         </div>
         <div className="clickable" onClick={() => setStatFilter('pending')}>
-          <StatCard icon={UserCheck} label="Pending Proofs" value="28" sub="Critical attention needed" subDirection="down" />
+          <StatCard icon={UserCheck} label="Pending Proofs" value={String(pendingProofs.length)} sub="Awaiting production" />
         </div>
         <div className="clickable" onClick={() => navigate('/analytics')}>
-          <StatCard icon={DollarSign} label="Revenue (Daily)" value="₱12,450.80" />
+          <StatCard icon={DollarSign} label="Revenue (Daily)" value={`₱${dailyRevenue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`} />
         </div>
       </div>
 
       <div className="flex-between mb-16">
         <span className="chip-filter active">Main Hub - baliuag <ChevronDown size={13} style={{ marginLeft: 4 }} /></span>
         <div className="flex-row gap-8">
-          <button className="btn btn-outline btn-sm" onClick={() => setShowBulkImport(true)}><Upload /> Bulk Import</button>
-          <button className="btn btn-outline btn-sm" onClick={() => showToast('Orders exported', 'success')}><Download /> Bulk Export</button>
+          <button className="btn btn-outline btn-sm" onClick={exportOrders}><Download /> Export CSV</button>
           <button className="btn btn-primary btn-sm" onClick={() => { setEditingDraft(null); setShowAddOrder(true) }}><Plus /> Add Order</button>
         </div>
       </div>
@@ -324,20 +366,13 @@ export default function Orders() {
         <AddOrderModal
           onClose={() => { setShowAddOrder(false); setEditingDraft(null) }}
           onSave={handleSubmitOrder}
+          products={products}
+          branches={branches}
           onSaveDraft={handleSaveDraft}
           initialDraft={editingDraft}
           drafts={drafts}
           onEditDraft={handleEditDraft}
           onRemoveDraft={handleRemoveDraft}
-        />
-      )}
-
-      {showBulkImport && (
-        <ConfirmModal
-          title="Import All New Orders?"
-          onCancel={() => setShowBulkImport(false)}
-          onConfirm={handleConfirmImport}
-          busy={importing}
         />
       )}
 

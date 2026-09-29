@@ -13,27 +13,27 @@ const paymentMethods = [
 ]
 
 export default function AddOrderModal({
-  onClose, onSave, onSaveDraft, initialDraft, drafts = [], onEditDraft, onRemoveDraft,
+  onClose, onSave, onSaveDraft, initialDraft, drafts = [], onEditDraft, onRemoveDraft, products = [], branches = [],
 }) {
   const [customer, setCustomer] = useState(initialDraft?.customer || { name: '', contact: '', email: '', address: '' })
+  const [productId, setProductId] = useState(String(initialDraft?.productId || products[0]?.id || ''))
+  const [branchId, setBranchId] = useState(String(initialDraft?.branchId || branches[0]?.id || ''))
   const [size, setSize] = useState(initialDraft?.size || 'M')
   const [color, setColor] = useState(initialDraft?.color || colors[0])
   const [quantity, setQuantity] = useState(initialDraft?.quantity || 10)
   const [payment, setPayment] = useState(initialDraft?.payment || 'GCash')
 
-  const base = 2500
-  const printing = 890
-  const discount = quantity >= 20 ? Math.round((base + printing) * 0.05) : 0
-  const delivery = 150
-  const total = base + printing - discount + delivery
+  const product = products.find((item) => String(item.id) === productId) || products[0]
+  const unitPrice = Number(product?.price || 0)
+  const total = unitPrice * quantity
 
   const buildOrder = () => ({
     id: initialDraft?.id,
-    customer, size, color, quantity, payment, total,
+    customer, productId: product?.id, productName: product?.name, unitPrice, branchId, branchCode: branches.find((item) => String(item.id) === branchId)?.code, size, color, quantity, payment, total,
   })
 
   const handleSubmit = () => {
-    if (!customer.name.trim()) return
+    if (!customer.name.trim() || !product || !branchId) return
     onSave(buildOrder())
   }
 
@@ -79,6 +79,18 @@ export default function AddOrderModal({
           </div>
 
           <div className="section-title mb-16" style={{ marginTop: 8 }}>Order Configuration</div>
+          <div className="field">
+            <label>Branch</label>
+            <select className="input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+              {branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>Product</label>
+            <select className="input" value={product?.id || ''} onChange={(e) => setProductId(e.target.value)}>
+              {products.map((item) => <option key={item.id} value={item.id}>{item.name} · ₱{Number(item.price).toFixed(2)}</option>)}
+            </select>
+          </div>
           <div className="two-col" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <div className="field">
               <label>Product Category</label>
@@ -178,26 +190,12 @@ export default function AddOrderModal({
               <span className="section-title">Order Summary</span>
             </div>
             <div className="flex-between mb-16" style={{ fontSize: 12.5 }}>
-              <span className="text-secondary">Base Product (10x)</span>
-              <span className="cell-primary">₱{base.toLocaleString()}.00</span>
-            </div>
-            <div className="flex-between mb-16" style={{ fontSize: 12.5 }}>
-              <span className="text-secondary">Printing Service</span>
-              <span className="cell-primary">₱{printing.toLocaleString()}.00</span>
-            </div>
-            {discount > 0 && (
-              <div className="flex-between mb-16" style={{ fontSize: 12.5, color: 'var(--color-primary)' }}>
-                <span>Bulk Discount (5%)</span>
-                <span>- ₱{discount.toLocaleString()}.00</span>
-              </div>
-            )}
-            <div className="flex-between mb-16" style={{ fontSize: 12.5 }}>
-              <span className="text-secondary">Delivery Fee</span>
-              <span className="cell-primary">₱{delivery.toLocaleString()}.00</span>
+              <span className="text-secondary">{product?.name || 'Select a product'} ({quantity}x)</span>
+              <span className="cell-primary">₱{total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
             </div>
             <div className="flex-between" style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
               <span className="cell-primary">Total Amount</span>
-              <span className="cell-primary" style={{ color: 'var(--color-primary)', fontSize: 16 }}>₱{total.toLocaleString()}.00</span>
+              <span className="cell-primary" style={{ color: 'var(--color-primary)', fontSize: 16 }}>₱{total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
 

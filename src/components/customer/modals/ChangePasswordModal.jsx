@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import Modal from '../../Modal.jsx'
 import { useToast } from '../../../context/ToastContext.jsx'
-import { customerPassword } from '../../../data/customerMockData.js'
+import { api } from '../../../utils/api.js'
 
 export default function ChangePasswordModal({ onClose }) {
   const { showToast } = useToast()
@@ -14,7 +14,7 @@ export default function ChangePasswordModal({ onClose }) {
   const [showConfirm, setShowConfirm] = useState(false)
   const [errors, setErrors] = useState({})
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const nextErrors = {}
     if (!currentPassword) nextErrors.currentPassword = 'Enter current password.'
     if (!newPassword) nextErrors.newPassword = 'Enter a new password.'
@@ -25,17 +25,18 @@ export default function ChangePasswordModal({ onClose }) {
     if (newPassword && newPassword.length < 6) {
       nextErrors.newPassword = 'Password must be at least 6 characters.'
     }
-    if (currentPassword && currentPassword !== customerPassword) {
-      nextErrors.currentPassword = 'Current password is incorrect.'
-    }
-
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors)
       return
     }
 
-    showToast('Password successfully updated.', 'success')
-    onClose()
+    try {
+      await api.changePassword(currentPassword, newPassword)
+      showToast('Password successfully updated.', 'success')
+      onClose()
+    } catch (error) {
+      setErrors((previous) => ({ ...previous, currentPassword: error.message }))
+    }
   }
 
   return (

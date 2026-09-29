@@ -40,7 +40,7 @@ export default function MyOrders() {
       id: order.transaction_id,
       statusLabel: { PLACED: 'Order Placed', DESIGNING: 'Designing', PRINTING: 'Printing', READY: 'Ready for Pickup', COMPLETED: 'Completed', CANCELLED: 'Cancelled' }[order.status] || order.status,
       placedAt: new Date(order.created_at).toLocaleString(),
-      branch: 'MJ Prints',
+      branch: order.branch_name || 'Unassigned',
       items: order.items.map((item) => ({ name: item.product_name, qty: `${item.quantity} unit(s)`, price: Number(item.subtotal) })),
     })))).catch((error) => {
       setCustomerOrders([])

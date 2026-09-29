@@ -1,17 +1,22 @@
 import { useState } from 'react'
 import { Lock } from 'lucide-react'
 import Modal from '../../Modal.jsx'
-import { adminPassword } from '../../../data/adminMockData.js'
+import { api } from '../../../utils/api.js'
 
 export default function ConfirmPasswordModal({ onClose, onConfirm }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  const handleConfirm = () => {
-    if (password === adminPassword) {
+  const handleConfirm = async () => {
+    setSaving(true)
+    try {
+      await api.verifyPassword(password)
       onConfirm()
-    } else {
-      setError('Incorrect password')
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -23,7 +28,7 @@ export default function ConfirmPasswordModal({ onClose, onConfirm }) {
       actions={(
         <>
           <button className="btn btn-danger-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleConfirm}>Confirm</button>
+          <button className="btn btn-primary" onClick={handleConfirm} disabled={saving}>Confirm</button>
         </>
       )}
     >

@@ -60,12 +60,15 @@ export default function CustomerDetailsModal({ customer, onClose, onEdit }) {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td className="cell-primary" style={{ color: 'var(--color-primary)' }}>#{customer.id}841</td>
-              <td>{customer.lastNote}</td>
-              <td className="text-secondary">{customer.lastDate}</td>
-              <td><span className="badge badge-success">Completed</span></td>
-            </tr>
+            {(customer.recent_orders || []).map((order) => (
+              <tr key={order.transaction_id}>
+                <td className="cell-primary" style={{ color: 'var(--color-primary)' }}>#{order.transaction_id}</td>
+                <td>{order.product_name}</td>
+                <td className="text-secondary">{order.created_at ? new Date(order.created_at).toLocaleDateString() : '—'}</td>
+                <td>{order.status}</td>
+              </tr>
+            ))}
+            {!customer.recent_orders?.length && <tr><td colSpan={4} className="text-secondary" style={{ textAlign: 'center', padding: 16 }}>No orders recorded.</td></tr>}
           </tbody>
         </table>
       </div>

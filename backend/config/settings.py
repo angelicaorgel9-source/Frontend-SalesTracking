@@ -1,12 +1,3 @@
-"""
-Django settings for the MJ Prints backend.
-Uses SQLite for Django-owned auth/admin data and MongoDB for application data.
-
-- CORS i need to change
-  will change later on:
-  CORS_ALLOWED_ORIGINS = ["https://mjprints.com"]
-"""
-
 from pathlib import Path
 import os
 
@@ -55,6 +46,17 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost",
+    "http://127.0.0.1",
+]
+
 
 ROOT_URLCONF = 'config.urls'
 
@@ -124,6 +126,9 @@ if _cors_origins:
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_origins.split(',') if origin.strip()]
 else:
     CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOW_ALL_ORIGINS = True
+
 
 # MongoDB application-data connection. Keep the URI in the environment; never
 # commit credentials to this file or to a .env file tracked by git.

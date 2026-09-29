@@ -1,11 +1,12 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import logo from '../assets/logo.png'
+import { api } from '../utils/api.js'
 
 const ProfileContext = createContext(null)
 
 const defaultProfile = {
-  name: 'Juan Dela Cruz',
-  email: 'juan.delacruz@mjprints.com',
+  name: '',
+  email: '',
   role: 'Employee',
   avatar: logo,
 }
@@ -22,6 +23,7 @@ export function EmployeeProfileProvider({ children }) {
           name: parsedUser.name || parsedUser.username || defaultProfile.name,
           email: parsedUser.email || defaultProfile.email,
           phone: parsedUser.phone || '',
+          branch_name: parsedUser.branch_name || '',
           role: parsedUser.role === 'ADMIN' ? 'Administrator' : 'Employee',
           avatar: defaultProfile.avatar,
         }
@@ -36,21 +38,15 @@ export function EmployeeProfileProvider({ children }) {
   const [showEditProfile, setShowEditProfile] = useState(false)
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('mje:user')
-    if (savedUser) {
-      try {
-        const parsedUser = JSON.parse(savedUser)
-        setProfile((current) => ({
-          ...current,
-          name: parsedUser.name || parsedUser.username || current.name,
-          email: parsedUser.email || current.email,
-          phone: parsedUser.phone || current.phone,
-          role: parsedUser.role === 'ADMIN' ? 'Administrator' : 'Employee',
-        }))
-      } catch (error) {
-        // ignore parse errors
-      }
-    }
+    if (!localStorage.getItem('mje:token')) return
+    api.getMyProfile().then((user) => setProfile((current) => ({
+      ...current,
+      name: user.name || user.username,
+      email: user.email,
+      phone: user.phone || '',
+      branch_name: user.branch_name || '',
+      role: user.role === 'ADMIN' ? 'Administrator' : 'Employee',
+    }))).catch(() => {})
   }, [])
 
   useEffect(() => {

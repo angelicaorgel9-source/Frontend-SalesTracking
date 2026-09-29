@@ -1,11 +1,9 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Users, UserPlus2, Package, UserX, Download, Plus, Search, Pencil, Ban, CheckCircle2 } from 'lucide-react'
+import { Users, UserPlus2, Package, UserX, Download, Search } from 'lucide-react'
 import EmployeeLayout from '../../layouts/EmployeeLayout.jsx'
 import StatCard from '../../components/StatCard.jsx'
 import ActionMenu from '../../components/ActionMenu.jsx'
 import CustomerDetailsModal from '../../components/employee/modals/CustomerDetailsModal.jsx'
-import EditCustomerModal from '../../components/employee/modals/EditCustomerModal.jsx'
-import NewClientModal from '../../components/employee/modals/NewClientModal.jsx'
 import { useToast } from '../../context/ToastContext.jsx'
 import { downloadCsv } from '../../utils/csv.js'
 import { api } from '../../utils/api.js'
@@ -19,8 +17,6 @@ export default function Customers() {
   const [search, setSearch] = useState('')
 
   const [viewCustomer, setViewCustomer] = useState(null)
-  const [editCustomer, setEditCustomer] = useState(null)
-  const [showNewClient, setShowNewClient] = useState(false)
 
   useEffect(() => {
     let isActive = true
@@ -37,18 +33,7 @@ export default function Customers() {
           lastDate: customer.lastDate || '—',
           status: customer.status === 'Inactive' ? 'Inactive' : 'Active',
         }))
-        const backendIds = new Set(refreshed.map((customer) => String(customer.id)))
-        setRegistry((current) => {
-          const currentById = new Map(current.map((customer) => [String(customer.id), customer]))
-          const updated = refreshed.map((customer) => {
-            const existing = currentById.get(String(customer.id))
-            return existing
-              ? { ...existing, orders: customer.orders, spend: customer.spend, lastDate: customer.lastDate }
-              : customer
-          })
-          const localCustomers = current.filter((customer) => customer.localOnly && !backendIds.has(String(customer.id)))
-          return [...updated, ...localCustomers]
-        })
+        setRegistry(refreshed)
       } catch {
         // Keep the last successful result visible if the API is temporarily unavailable.
       }
@@ -77,46 +62,6 @@ export default function Customers() {
     return tabMatch && searchMatch
   }), [registry, tab, search])
 
-  const handleSaveEdit = (form) => {
-    setRegistry((prev) => prev.map((c) => (c.id === editCustomer.id ? {
-      ...c,
-      name: form.contact,
-      company: form.company,
-      email: form.email,
-      phone: form.phone,
-      status: form.status === 'Inactive' ? 'Inactive' : 'Active',
-    } : c)))
-    setEditCustomer(null)
-    showToast('Customer profile updated', 'success')
-  }
-
-  const handleSaveNewClient = (form) => {
-    const initials = form.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'NC'
-    setRegistry((prev) => [{
-      id: `local-${Date.now()}`,
-      localOnly: true,
-      initials,
-      name: form.fullName,
-      company: form.address || 'Walk-in Client',
-      email: form.email,
-      phone: form.contact,
-      orders: 0,
-      spend: '₱0',
-      spendLabel: 'Total Spend',
-      lastDate: '—',
-      lastNote: 'New client',
-      status: 'Active',
-    }, ...prev])
-    setShowNewClient(false)
-    showToast('New client added successfully', 'success')
-  }
-
-  const toggleBlock = (customer) => {
-    const nextStatus = customer.status === 'Active' ? 'Inactive' : 'Active'
-    setRegistry((prev) => prev.map((c) => (c.id === customer.id ? { ...c, status: nextStatus } : c)))
-    showToast(nextStatus === 'Inactive' ? `${customer.name} has been blocked` : `${customer.name} has been reactivated`, nextStatus === 'Inactive' ? 'error' : 'success')
-  }
-
   const handleExportCsv = () => {
     downloadCsv({
       filename: 'customers.csv',
@@ -132,22 +77,21 @@ export default function Customers() {
         <h1 className="page-title" style={{ marginBottom: 0 }}>Customer Management</h1>
         <div className="flex-row gap-8">
           <button className="btn btn-outline btn-sm" onClick={handleExportCsv}><Download size={14} /> Export CSV</button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowNewClient(true)}><Plus size={14} /> Add New Customer</button>
         </div>
       </div>
 
       <div className="stat-grid mb-20" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
         <div className="clickable" onClick={() => setTab('All')}>
-          <StatCard icon={Users} label="Total Customers" value={String(totalCustomers)} sub="↑ +12% from last month" subDirection="up" />
+          <StatCard icon={Users} label="Total Customers" value={String(totalCustomers)} />
         </div>
         <div className="clickable" onClick={() => setTab('Active')}>
-          <StatCard icon={UserPlus2} label="Active This Month" value={String(activeCount)} sub="+6% engagement" subDirection="up" />
+          <StatCard icon={UserPlus2} label="Active Accounts" value={String(activeCount)} />
         </div>
         <div className="clickable" onClick={() => showToast(`Average ${avgOrders} orders per customer`, 'info')}>
           <StatCard icon={Package} label="Orders Per Customer" value={`Avg. ${avgOrders}`} />
         </div>
         <div className="clickable" onClick={() => setTab('Inactive')}>
-          <StatCard icon={UserX} label="Inactive (90d+)" value={String(inactiveCount)} sub="-2%" subDirection="down" />
+          <StatCard icon={UserX} label="Inactive Accounts" value={String(inactiveCount)} />
         </div>
       </div>
 
@@ -175,7 +119,7 @@ export default function Customers() {
             <thead>
               <tr>
                 <th>Customer Name</th>
-                <th>Company</th>
+                <th>Email</th>
                 <th>Total Orders</th>
                 <th>Last Order Date</th>
                 <th>Status</th>
@@ -194,7 +138,7 @@ export default function Customers() {
                       </div>
                     </div>
                   </td>
-                  <td className="text-secondary">{c.company}</td>
+                  <td className="text-secondary">{c.email}</td>
                   <td>
                     <div className="cell-primary">{c.orders}</div>
                     <div className="cell-sub" style={{ color: 'var(--color-primary)' }}>{c.spend}</div>
@@ -205,16 +149,7 @@ export default function Customers() {
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <div className="flex-row gap-8 row-actions-cell">
-                      <ActionMenu
-                        items={[
-                          { label: 'View Details', icon: Users, onClick: () => setViewCustomer(c) },
-                          { label: 'Edit Customer', icon: Pencil, onClick: () => setEditCustomer(c) },
-                          c.status === 'Active'
-                            ? { label: 'Block Customer', icon: Ban, danger: true, onClick: () => toggleBlock(c) }
-                            : { label: 'Unblock Customer', icon: CheckCircle2, onClick: () => toggleBlock(c) },
-                        ]}
-                      />
-                      <button className="btn btn-outline btn-sm row-quick-edit" onClick={() => setEditCustomer(c)}><Pencil size={13} /> Edit</button>
+                      <ActionMenu items={[{ label: 'View Details', icon: Users, onClick: () => setViewCustomer(c) }]} />
                     </div>
                   </td>
                 </tr>
@@ -243,17 +178,6 @@ export default function Customers() {
         />
       )}
 
-      {editCustomer && (
-        <EditCustomerModal
-          customer={editCustomer}
-          onClose={() => setEditCustomer(null)}
-          onSave={handleSaveEdit}
-        />
-      )}
-
-      {showNewClient && (
-        <NewClientModal onClose={() => setShowNewClient(false)} onSave={handleSaveNewClient} />
-      )}
     </EmployeeLayout>
   )
 }

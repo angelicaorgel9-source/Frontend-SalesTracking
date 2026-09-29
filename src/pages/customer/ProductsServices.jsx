@@ -56,6 +56,9 @@ export default function ProductsServices() {
   const handleSaveOrder = async (order) => {
     try {
       const saved = await api.createOrder({
+        branch: order.branchId,
+        branch_id: order.branchId,
+        branch_code: order.branchCode,
         customer_name: order.customer.name,
         customer_phone: order.customer.contact,
         customer_email: order.customer.email,

@@ -39,9 +39,7 @@ export default function ChangeStatusModal({ user, onClose, onSave }) {
         <label>New Status</label>
         <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="ACTIVE">Active</option>
-          <option value="ON LEAVE">On Leave</option>
-          <option value="SUSPENDED">Suspended</option>
-          <option value="RESIGNED">Resigned</option>
+          <option value="INACTIVE">Inactive</option>
         </select>
       </div>
 

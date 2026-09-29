@@ -1,4 +1,5 @@
-from datetime import timedelta
+import calendar
+from datetime import date, datetime, time, timedelta
 from datetime import datetime, timezone as dt_timezone
 import random
 import string
@@ -13,9 +14,20 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from accounts.permissions import IsAdmin, IsAdminOrEmployee, IsCustomerOrStaff
+from branches.models import Branch
 from config.mongodb import get_mongo_database
 from .models import Order
 from .serializers import OrderSerializer, OrderTrackSerializer
+
+
+def mongo_branch_name(document):
+    branch_id = document.get('branchId')
+    branch = None
+    if str(branch_id or '').isdigit():
+        branch = Branch.objects.filter(pk=int(branch_id)).first()
+    if not branch:
+        branch = Branch.objects.filter(code=document.get('branchCode', branch_id)).first()
+    return branch.name if branch else ''
 
 
 class OrderListCreateView(generics.ListCreateAPIView):
@@ -40,6 +52,7 @@ class OrderListCreateView(generics.ListCreateAPIView):
             'customer_name': document.get('customerName', ''),
             'customer_phone': document.get('customerPhone', ''),
             'customer_email': document.get('customerEmail', ''),
+            'branch_name': mongo_branch_name(document),
             'status': document.get('status', 'PLACED'),
             'payment_method': document.get('paymentMethod', 'CASH'),
             'total_amount': document.get('totalAmount', 0),
@@ -190,6 +203,67 @@ class CustomerOrderEditView(APIView):
         })
 
 
+class OrderStatusUpdateView(APIView):
+    permission_classes = [IsAdminOrEmployee]
+
+    def patch(self, request, transaction_id):
+        status_value = request.data.get('status')
+        valid_statuses = {value for value, _label in Order.STATUS_CHOICES}
+        if status_value is not None and status_value not in valid_statuses:
+            return Response({'status': 'Select a valid order status.'}, status=400)
+
+        if settings.MONGO_URI:
+            collection = get_mongo_database()['orders']
+            order = collection.find_one({'transactionId': transaction_id})
+            if not order:
+                return Response({'detail': 'Order not found.'}, status=404)
+            now = datetime.now(dt_timezone.utc)
+            field_map = {
+                'customer_name': 'customerName',
+                'customer_phone': 'customerPhone',
+                'customer_email': 'customerEmail',
+                'payment_method': 'paymentMethod',
+                'estimated_completion': 'estimatedCompletion',
+                'branch': 'branchId',
+                'total_amount': 'totalAmount',
+            }
+            updates = {field_map[key]: value for key, value in request.data.items() if key in field_map}
+            updates['updatedAt'] = now
+            if status_value is not None:
+                updates['status'] = status_value
+            operations = {'$set': updates}
+            if status_value is not None:
+                operations['$push'] = {'statusHistory': {'status': status_value, 'timestamp': now, 'updatedBy': request.user.id}}
+            collection.update_one(
+                {'_id': order['_id']},
+                operations,
+            )
+            return Response({'transaction_id': transaction_id, 'status': status_value, 'updated_at': now})
+
+        order = Order.objects.filter(transaction_id=transaction_id).first()
+        if not order:
+            return Response({'detail': 'Order not found.'}, status=404)
+        field_map = {
+            'customer_name': 'customer_name',
+            'customer_phone': 'customer_phone',
+            'customer_email': 'customer_email',
+            'payment_method': 'payment_method',
+            'estimated_completion': 'estimated_completion',
+            'branch': 'branch_id',
+            'total_amount': 'total_amount',
+        }
+        updated_fields = ['updated_at']
+        for key, model_field in field_map.items():
+            if key in request.data:
+                setattr(order, model_field, request.data[key])
+                updated_fields.append(model_field)
+        if status_value is not None:
+            order.status = status_value
+            updated_fields.append('status')
+        order.save(update_fields=updated_fields)
+        return Response({'transaction_id': transaction_id, 'status': order.status, 'updated_at': order.updated_at})
+
+
 class OrderTrackView(generics.RetrieveAPIView):
     
  
@@ -230,6 +304,7 @@ class OrderTrackView(generics.RetrieveAPIView):
                 'customer_name': document.get('customerName', ''),
                 'customer_phone': document.get('customerPhone', ''),
                 'customer_email': document.get('customerEmail', ''),
+                'branch_name': mongo_branch_name(document),
                 'payment_method': document.get('paymentMethod', 'CASH'),
                 'status': document.get('status', 'PLACED'),
                 'created_at': document.get('createdAt'),
@@ -239,6 +314,124 @@ class OrderTrackView(generics.RetrieveAPIView):
                 'items': items,
             })
         return super().retrieve(request, *args, **kwargs)
+
+
+class SalesAnalyticsView(APIView):
+    permission_classes = [IsAdminOrEmployee]
+    PERIODS = ('daily', 'weekly', 'monthly', 'quarterly', 'yearly')
+
+    def get(self, request):
+        period = request.query_params.get('period', 'monthly').lower()
+        branch_key = request.query_params.get('branch')
+        if period not in self.PERIODS:
+            return Response({'period': 'Select daily, weekly, monthly, quarterly, or yearly.'}, status=400)
+
+        branch_query = Branch.objects.filter(is_active=True)
+        if branch_key:
+            branch_query = branch_query.filter(pk=branch_key) if str(branch_key).isdigit() else branch_query.filter(code=branch_key)
+        branch = branch_query.first()
+        if not branch:
+            return Response({'detail': 'Branch not found.'}, status=404)
+
+        today = timezone.localdate()
+        if period == 'daily':
+            range_start = today
+            range_end = today + timedelta(days=1)
+            buckets = [(hour, f'{hour:02d}:00') for hour in range(24)]
+        elif period == 'weekly':
+            range_start = today - timedelta(days=today.weekday())
+            range_end = range_start + timedelta(days=7)
+            buckets = [(range_start + timedelta(days=offset), (range_start + timedelta(days=offset)).strftime('%a')) for offset in range(7)]
+        elif period == 'monthly':
+            range_start = today.replace(day=1)
+            range_end = today.replace(day=calendar.monthrange(today.year, today.month)[1]) + timedelta(days=1)
+            buckets = [(range_start + timedelta(days=offset), (range_start + timedelta(days=offset)).strftime('%d %b')) for offset in range((range_end - range_start).days)]
+        elif period == 'quarterly':
+            quarter_month = ((today.month - 1) // 3) * 3 + 1
+            range_start = today.replace(month=quarter_month, day=1)
+            range_end = (range_start.replace(year=range_start.year + 1, month=1) if quarter_month == 10 else range_start.replace(month=quarter_month + 3))
+            buckets = [(month, date(today.year, month, 1).strftime('%b')) for month in range(quarter_month, quarter_month + 3)]
+        else:
+            range_start = today.replace(month=1, day=1)
+            range_end = range_start.replace(year=range_start.year + 1)
+            buckets = [(month, calendar.month_abbr[month]) for month in range(1, 13)]
+
+        start_at = timezone.make_aware(datetime.combine(range_start, time.min), timezone.get_current_timezone())
+        end_at = timezone.make_aware(datetime.combine(range_end, time.min), timezone.get_current_timezone())
+        totals = {key: {'sales': 0.0, 'orders': 0} for key, _label in buckets}
+
+        if settings.MONGO_URI:
+            branch_filters = [
+                {'branchId': str(branch.id)},
+                {'branchId': branch.id},
+                {'branchCode': branch.code},
+            ]
+            orders = get_mongo_database()['orders'].find({
+                '$and': [
+                    {'$or': branch_filters},
+                    {'createdAt': {'$gte': start_at, '$lt': end_at}},
+                    {'status': {'$ne': Order.STATUS_CANCELLED}},
+                ],
+            }, {'createdAt': 1, 'totalAmount': 1})
+            for order in orders:
+                created_at = order.get('createdAt')
+                if not created_at:
+                    continue
+                if timezone.is_naive(created_at):
+                    created_at = timezone.make_aware(created_at, dt_timezone.utc)
+                local_created = timezone.localtime(created_at)
+                if period == 'daily':
+                    key = local_created.hour
+                elif period in ('weekly', 'monthly'):
+                    key = local_created.date()
+                else:
+                    key = local_created.month
+                if key in totals:
+                    totals[key]['sales'] += float(order.get('totalAmount', 0) or 0)
+                    totals[key]['orders'] += 1
+        else:
+            orders = Order.objects.filter(
+                branch=branch,
+                created_at__gte=start_at,
+                created_at__lt=end_at,
+            ).exclude(status=Order.STATUS_CANCELLED).values('created_at', 'total_amount')
+            for order in orders:
+                local_created = timezone.localtime(order['created_at'])
+                if period == 'daily':
+                    key = local_created.hour
+                elif period in ('weekly', 'monthly'):
+                    key = local_created.date()
+                else:
+                    key = local_created.month
+                if key in totals:
+                    totals[key]['sales'] += float(order['total_amount'] or 0)
+                    totals[key]['orders'] += 1
+
+        sales_total = sum(bucket['sales'] for bucket in totals.values())
+        order_count = sum(bucket['orders'] for bucket in totals.values())
+        completed_orders = 0
+        if settings.MONGO_URI:
+            completed_orders = get_mongo_database()['orders'].count_documents({
+                '$and': [
+                    {'$or': [{'branchId': str(branch.id)}, {'branchId': branch.id}, {'branchCode': branch.code}]},
+                    {'createdAt': {'$gte': start_at, '$lt': end_at}},
+                    {'status': Order.STATUS_COMPLETED},
+                ],
+            })
+        else:
+            completed_orders = Order.objects.filter(branch=branch, status=Order.STATUS_COMPLETED, created_at__gte=start_at, created_at__lt=end_at).count()
+
+        return Response({
+            'branch': {'id': branch.id, 'name': branch.name, 'code': branch.code},
+            'period': period,
+            'range_start': range_start.isoformat(),
+            'range_end': (range_end - timedelta(days=1)).isoformat(),
+            'sales_total': sales_total,
+            'order_count': order_count,
+            'average_order_value': sales_total / order_count if order_count else 0,
+            'completed_orders': completed_orders,
+            'series': [{'label': label, **totals[key]} for key, label in buckets],
+        })
 
 
 class SalesSummaryView(APIView):

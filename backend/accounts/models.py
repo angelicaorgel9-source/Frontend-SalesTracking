@@ -18,6 +18,7 @@ class User(AbstractUser):
     name = models.CharField(max_length=150, blank=True)
     phone = models.CharField(max_length=30, blank=True)
     two_factor_enabled = models.BooleanField(default=True)
+    notifications_read_ids = models.JSONField(default=list, blank=True)
     branch = models.ForeignKey(
         'branches.Branch',
         on_delete=models.SET_NULL,

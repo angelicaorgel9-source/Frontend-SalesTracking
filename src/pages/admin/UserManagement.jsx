@@ -1,24 +1,21 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Search, Shield, User } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout.jsx'
 import CredentialsModal from '../../components/CredentialsModal.jsx'
 import ChangePositionModal from '../../components/admin/modals/ChangePositionModal.jsx'
 import ChangeStatusModal from '../../components/admin/modals/ChangeStatusModal.jsx'
-import ManageAccessModal from '../../components/admin/modals/ManageAccessModal.jsx'
-import SelectUserModal from '../../components/admin/modals/SelectUserModal.jsx'
-import { employeeUsers as seedUsers } from '../../data/adminMockData.js'
 import { useToast } from '../../context/ToastContext.jsx'
+import { api } from '../../utils/api.js'
 
 const roleBadge = {
   ADMIN: 'badge-info',
-  Employee: 'badge-neutral',
+  EMPLOYEE: 'badge-neutral',
 }
 
 function randomPassword() {
   const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789@#'
-  let out = ''
-  for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)]
-  return out
+  const values = crypto.getRandomValues(new Uint32Array(12))
+  return Array.from(values, (value) => chars[value % chars.length]).join('').slice(0, 12)
 }
 
 export default function UserManagement() {
@@ -26,42 +23,84 @@ export default function UserManagement() {
   const [firstName, setFirstName] = useState('')
   const [middleName, setMiddleName] = useState('')
   const [surname, setSurname] = useState('')
-  const [gender, setGender] = useState('Female')
-  const [branch, setBranch] = useState('Baliuag')
-  const [role, setRole] = useState('')
+  const [branch, setBranch] = useState('')
   const [credentials, setCredentials] = useState(null)
 
-  const [users, setUsers] = useState(seedUsers)
+  const [users, setUsers] = useState([])
+  const [branches, setBranches] = useState([])
+  const [search, setSearch] = useState('')
   const [positionUser, setPositionUser] = useState(null)
   const [statusUser, setStatusUser] = useState(null)
-  const [manageUser, setManageUser] = useState(null)
-  const [showSelectUser, setShowSelectUser] = useState(false)
-  const [showManageAccess, setShowManageAccess] = useState(false)
+
+  const loadUsers = () => api.getEmployees().then((records) => setUsers(records.map((user) => ({
+    ...user,
+    key: user.username,
+    created: new Date(user.created_at).toLocaleDateString(),
+    status: user.is_active ? 'ACTIVE' : 'INACTIVE',
+  }))))
+
+  useEffect(() => {
+    Promise.all([loadUsers(), api.getBranches().then(setBranches)])
+      .catch((error) => showToast(error.message, 'error'))
+  }, [showToast])
 
   const clearForm = () => {
     setFirstName('')
     setMiddleName('')
     setSurname('')
-    setGender('Female')
-    setRole('')
+    setBranch('')
   }
 
   const generateCredentials = () => {
-    const username = `MJP-001-e${String(Math.floor(Math.random() * 900) + 100)}`
+    const username = `mjp-${crypto.randomUUID().slice(0, 8)}`
     setCredentials({ username, password: randomPassword() })
   }
 
-  const handleSavePosition = (newPosition) => {
-    setUsers((prev) => prev.map((u, i) => (u === positionUser ? { ...u, role: u.role === 'ADMIN' ? u.role : newPosition } : u)))
-    setPositionUser(null)
-    showToast('Employee position updated', 'success')
+  const handleSavePosition = async (newPosition) => {
+    try {
+      const role = newPosition === 'Admin' ? 'ADMIN' : 'EMPLOYEE'
+      await api.updateEmployee(positionUser.id, { role })
+      await loadUsers()
+      setPositionUser(null)
+      showToast('Employee role updated', 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
   }
 
-  const handleSaveStatus = ({ status }) => {
-    setUsers((prev) => prev.map((u) => (u === statusUser ? { ...u, status } : u)))
-    setStatusUser(null)
-    showToast('Employee status updated', 'success')
+  const handleSaveStatus = async ({ status }) => {
+    try {
+      await api.updateEmployee(statusUser.id, { is_active: status === 'ACTIVE' })
+      await loadUsers()
+      setStatusUser(null)
+      showToast('Employee status updated', 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
   }
+
+  const handleSaveEmployee = async () => {
+    if (!credentials) return
+    try {
+      const selectedBranch = branches.find((item) => String(item.id) === String(branch))
+      await api.createEmployee({
+        username: credentials.username,
+        password: credentials.password,
+        name: [firstName, middleName, surname].filter(Boolean).join(' '),
+        branch: selectedBranch?.id || null,
+      })
+      await loadUsers()
+      clearForm()
+      setCredentials(null)
+      showToast('Employee account created', 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
+  }
+
+  const filteredUsers = users.filter((user) => (
+    `${user.name} ${user.username} ${user.role}`.toLowerCase().includes(search.trim().toLowerCase())
+  ))
 
   return (
     <AdminLayout topbarProps={{ title: 'Admin: User Management' }}>
@@ -87,36 +126,20 @@ export default function UserManagement() {
               <input className="input" value={surname} onChange={(e) => setSurname(e.target.value)} />
             </div>
             <div className="field">
-              <label>Gender</label>
-              <div className="flex-row gap-12" style={{ marginTop: 10 }}>
-                <label className="flex-row gap-8 text-secondary" style={{ fontSize: 13 }}>
-                  <input type="radio" name="gender" checked={gender === 'Female'} onChange={() => setGender('Female')} />
-                  Female
-                </label>
-                <label className="flex-row gap-8 text-secondary" style={{ fontSize: 13 }}>
-                  <input type="radio" name="gender" checked={gender === 'Male'} onChange={() => setGender('Male')} />
-                  Male
-                </label>
-              </div>
+              <label>Account Type</label>
+              <input className="input" value="Employee" disabled />
             </div>
           </div>
 
           <div className="two-col" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <div className="field">
-              <label>Branch Assessment</label>
+              <label>Branch</label>
               <select className="input" value={branch} onChange={(e) => setBranch(e.target.value)}>
-                <option>Baliuag</option>
-                <option>Tangos</option>
+                <option value="">Unassigned</option>
+                {branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
               </select>
             </div>
-            <div className="field">
-              <label>Role</label>
-              <select className="input" value={role} onChange={(e) => setRole(e.target.value)}>
-                <option value="">Select Role</option>
-                <option value="Admin">Admin</option>
-                <option value="Employee">Employee</option>
-              </select>
-            </div>
+            <div className="field"><label>Role</label><input className="input" value="Employee" disabled /></div>
           </div>
 
           <div className="flex-between" style={{ borderTop: '1px solid var(--color-border)', paddingTop: 16, marginTop: 4 }}>
@@ -135,9 +158,8 @@ export default function UserManagement() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div className="input-icon-wrap" style={{ width: 240 }}>
               <Search />
-              <input className="input" placeholder="Filter by role or name..." />
+              <input className="input" placeholder="Filter by role or name..." value={search} onChange={(event) => setSearch(event.target.value)} />
             </div>
-            <button className="btn btn-outline" onClick={() => setShowSelectUser(true)}>Manage Permissions</button>
           </div>
         </div>
         <div className="table-wrap">
@@ -152,8 +174,8 @@ export default function UserManagement() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u, i) => (
-                <tr key={i}>
+              {filteredUsers.map((u) => (
+                <tr key={u.id}>
                   <td>
                     <div className="cell-primary">{u.key}</div>
                     <div className="cell-sub">{u.name}</div>
@@ -169,7 +191,7 @@ export default function UserManagement() {
                   </td>
                   <td>
                     <div className="flex-row gap-8">
-                      <button className="btn btn-primary btn-sm" onClick={() => setPositionUser(u)}>Change Position</button>
+                      <button className="btn btn-primary btn-sm" onClick={() => setPositionUser(u)}>Change Role</button>
                       {u.status === 'ACTIVE' ? (
                         <button className="btn btn-outline btn-sm" onClick={() => setStatusUser(u)}>Change Status</button>
                       ) : (
@@ -179,44 +201,20 @@ export default function UserManagement() {
                   </td>
                 </tr>
               ))}
+              {!filteredUsers.length && <tr><td colSpan={5} className="text-secondary" style={{ textAlign: 'center', padding: 24 }}>No employees match this search.</td></tr>}
             </tbody>
           </table>
         </div>
         <div className="card-pad">
-          <span className="section-sub">Showing 3 of 12 keys</span>
+          <span className="section-sub">{filteredUsers.length} employee account{filteredUsers.length === 1 ? '' : 's'}</span>
         </div>
       </div>
 
       <CredentialsModal
         credentials={credentials}
         onClose={() => setCredentials(null)}
-        onSave={() => setCredentials(null)}
+        onSave={handleSaveEmployee}
       />
-
-      {showSelectUser && (
-        <SelectUserModal
-          users={users}
-          onClose={() => setShowSelectUser(false)}
-          onSelect={(u) => {
-            setShowSelectUser(false)
-            setManageUser(u)
-            setShowManageAccess(true)
-          }}
-        />
-      )}
-
-      {showManageAccess && manageUser && (
-        <ManageAccessModal
-          user={manageUser}
-          onClose={() => { setShowManageAccess(false); setManageUser(null) }}
-          onSave={(access) => {
-            // For now we just close and show toast; wiring to persist permissions is out of scope
-            setShowManageAccess(false)
-            setManageUser(null)
-            showToast('Permissions updated', 'success')
-          }}
-        />
-      )}
 
       {positionUser && (
         <ChangePositionModal

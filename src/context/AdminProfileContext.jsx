@@ -1,11 +1,12 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import logo from '../assets/logo.png'
+import { api } from '../utils/api.js'
 
 const ProfileContext = createContext(null)
 
 const defaultProfile = {
-  name: 'Admin MJ',
-  email: 'admin@mjprints.com',
+  name: '',
+  email: '',
   role: 'Administrator',
   avatar: logo,
 }
@@ -14,13 +15,29 @@ export function AdminProfileProvider({ children }) {
   const [profile, setProfile] = useState(() => {
     try {
       const stored = localStorage.getItem('mj:profile')
-      return stored ? JSON.parse(stored) : defaultProfile
+      const sessionUser = JSON.parse(localStorage.getItem('mja:user') || 'null')
+      return sessionUser ? {
+        ...defaultProfile,
+        name: sessionUser.name || sessionUser.username,
+        email: sessionUser.email,
+        role: sessionUser.role === 'ADMIN' ? 'Administrator' : sessionUser.role,
+      } : stored ? JSON.parse(stored) : defaultProfile
     } catch (error) {
       return defaultProfile
     }
   })
 
   const [showEditProfile, setShowEditProfile] = useState(false)
+
+  useEffect(() => {
+    if (!localStorage.getItem('mja:token')) return
+    api.getMyProfile().then((user) => setProfile((current) => ({
+      ...current,
+      name: user.name || user.username,
+      email: user.email,
+      role: user.role === 'ADMIN' ? 'Administrator' : user.role,
+    }))).catch(() => {})
+  }, [])
 
   useEffect(() => {
     try {

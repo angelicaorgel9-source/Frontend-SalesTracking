@@ -1,18 +1,16 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, User, MapPin, CreditCard, Plus, Pencil, Trash2, ShieldCheck, Download, Laptop, Smartphone,
+  ArrowLeft, User, MapPin, Plus, ShieldCheck, Download,
 } from 'lucide-react'
 import CustomerLayout from '../../layouts/CustomerLayout.jsx'
 import ChangePasswordModal from '../../components/customer/modals/ChangePasswordModal.jsx'
 import AddAddressModal from '../../components/customer/modals/AddAddressModal.jsx'
-import ConfirmModal from '../../components/ConfirmModal.jsx'
 import { useCustomerProfile } from '../../context/CustomerProfileContext.jsx'
 import { useToast } from '../../context/ToastContext.jsx'
 import { api } from '../../utils/api.js'
+import { downloadCsv } from '../../utils/csv.js'
 
 export default function Settings() {
-  const navigate = useNavigate()
   const { showToast } = useToast()
   const { profile, updateProfile } = useCustomerProfile()
 
@@ -23,12 +21,17 @@ export default function Settings() {
 
   const [twoFactor, setTwoFactor] = useState(profile.two_factor_enabled !== false)
   const [showChangePassword, setShowChangePassword] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showAddAddress, setShowAddAddress] = useState(false)
 
   const [addresses, setAddresses] = useState([])
-  const [payments] = useState([])
-  const customerDevices = []
+
+  useEffect(() => {
+    if (dirty) return
+    setName(profile.name)
+    setEmail(profile.email)
+    setPhone(profile.phone)
+    setTwoFactor(profile.two_factor_enabled !== false)
+  }, [profile, dirty])
 
   useEffect(() => {
     api.getAddresses().then(setAddresses).catch(() => setAddresses([]))
@@ -50,10 +53,14 @@ export default function Settings() {
     setDirty(true)
   }
 
-  const handleSave = () => {
-    updateProfile({ name: name.trim(), phone: phone.trim() })
-    setDirty(false)
-    showToast('Account settings saved.', 'success')
+  const handleSave = async () => {
+    try {
+      await updateProfile({ name: name.trim(), phone: phone.trim() })
+      setDirty(false)
+      showToast('Account settings saved.', 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
   }
 
   const handleCancel = () => {
@@ -114,11 +121,15 @@ export default function Settings() {
                 <div className="cell-sub">Add an extra layer of security to your account.</div>
               </div>
               <button
-                onClick={() => {
+                onClick={async () => {
                   const nextValue = !twoFactor
-                  setTwoFactor(nextValue)
-                  updateProfile({ two_factor_enabled: nextValue })
-                  showToast(`Two-factor authentication ${nextValue ? 'enabled' : 'disabled'}.`, 'success')
+                  try {
+                    await updateProfile({ two_factor_enabled: nextValue })
+                    setTwoFactor(nextValue)
+                    showToast(`Two-factor authentication ${nextValue ? 'enabled' : 'disabled'}.`, 'success')
+                  } catch (error) {
+                    showToast(error.message, 'error')
+                  }
                 }}
                 style={{
                   width: 42, height: 24, borderRadius: 999, border: 'none', cursor: 'pointer',
@@ -133,31 +144,7 @@ export default function Settings() {
               </button>
             </div>
 
-            <div className="section-sub mb-16" style={{ fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Recent Login Activity</div>
-            {customerDevices.map((d) => {
-              const Icon = d.label.toLowerCase().includes('iphone') || d.label.toLowerCase().includes('phone') ? Smartphone : Laptop
-              return (
-                <div key={d.id} className="flex-between" style={{ padding: '10px 4px', borderBottom: '1px solid #EFEFEF' }}>
-                  <div className="flex-row gap-10">
-                    <span className="stat-icon"><Icon size={15} /></span>
-                    <div>
-                      <div className="cell-primary" style={{ fontSize: 13 }}>{d.label}</div>
-                      <div className="cell-sub">{d.location}</div>
-                    </div>
-                  </div>
-                  {d.current ? (
-                    <span className="badge badge-success">Current</span>
-                  ) : (
-                    <button className="link-btn" style={{ color: 'var(--color-danger)' }} onClick={() => showToast(`Logged out ${d.label}`, 'success')}>
-                      Log out
-                    </button>
-                  )}
-                </div>
-              )
-            })}
-            <button className="link-btn" style={{ marginTop: 12 }} onClick={() => showToast('Opening device manager…', 'info')}>
-              Manage All Devices
-            </button>
+            <div className="section-sub">Login activity is not available for this account.</div>
           </div>
         </div>
 
@@ -182,39 +169,9 @@ export default function Settings() {
                     <div className="cell-sub">{a.address}</div>
                     <div className="cell-sub">{a.phone}</div>
                   </div>
-                  <div className="flex-row gap-8">
-                    <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => showToast('Editing address…', 'info')}>
-                      <Pencil size={13} />
-                    </button>
-                    <button className="icon-btn" style={{ width: 28, height: 28, color: 'var(--color-danger)' }} onClick={() => showToast('Address removed.', 'success')}>
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
                 </div>
               </div>
             ))}
-          </div>
-
-          <div className="card card-pad mb-20">
-            <div className="flex-row gap-10 mb-16">
-              <CreditCard size={16} />
-              <span className="section-title">Payments</span>
-            </div>
-            {payments.map((p) => (
-              <div key={p.id} className="flex-between mb-16" style={{ padding: '10px 4px', borderBottom: '1px solid #EFEFEF' }}>
-                <div className="flex-row gap-10">
-                  <span className="stat-icon"><CreditCard size={15} /></span>
-                  <div>
-                    <div className="cell-primary" style={{ fontSize: 13 }}>•••• {p.last4}</div>
-                    <div className="cell-sub">{p.primary ? 'Primary' : `Exp ${p.exp}`}</div>
-                  </div>
-                </div>
-                <button className="link-btn" onClick={() => showToast('Payment method removed.', 'success')}>Remove</button>
-              </div>
-            ))}
-            <button className="btn btn-outline btn-sm btn-full" onClick={() => showToast('Add Payment Method form coming soon.', 'info')}>
-              <Plus size={13} /> Add Payment Method
-            </button>
           </div>
 
           <div className="card card-pad">
@@ -223,37 +180,28 @@ export default function Settings() {
                 <div className="cell-primary" style={{ fontSize: 13 }}>Download My Data</div>
                 <div className="cell-sub">Get an archive of your order history.</div>
               </div>
-              <button className="icon-btn" onClick={() => showToast('Preparing your data export…', 'info')}>
+              <button className="icon-btn" title="Download order history" onClick={async () => {
+                try {
+                  const orders = await api.getOrders()
+                  downloadCsv({
+                    filename: 'my-orders.csv',
+                    columns: ['Transaction ID', 'Branch', 'Status', 'Total', 'Created At'],
+                    rows: orders.map((order) => [order.transaction_id, order.branch_name, order.status, order.total_amount, order.created_at]),
+                  })
+                  showToast('Order history downloaded.', 'success')
+                } catch (error) {
+                  showToast(error.message, 'error')
+                }
+              }}>
                 <Download size={16} />
               </button>
             </div>
-            <button
-              className="btn btn-full"
-              style={{ background: 'var(--color-danger-bg)', color: 'var(--color-danger)' }}
-              onClick={() => setShowDeleteConfirm(true)}
-            >
-              Delete Account
-            </button>
           </div>
         </div>
       </div>
 
       {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
       {showAddAddress && <AddAddressModal onClose={() => setShowAddAddress(false)} onSave={handleAddAddress} />}
-      {showDeleteConfirm && (
-        <ConfirmModal
-          title="Delete Account"
-          message="This will permanently delete your account and order history. This action cannot be undone."
-          confirmLabel="Delete Account"
-          cancelLabel="Cancel"
-          onCancel={() => setShowDeleteConfirm(false)}
-          onConfirm={() => {
-            setShowDeleteConfirm(false)
-            showToast('Your account has been deleted.', 'info')
-            navigate('/login')
-          }}
-        />
-      )}
     </CustomerLayout>
   )
 }

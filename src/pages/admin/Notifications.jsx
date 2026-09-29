@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ShoppingCart, CreditCard, Sparkles, Megaphone, Trash2, CheckCheck } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout.jsx'
-import { notifications as seedNotifications } from '../../data/adminMockData.js'
 import { useToast } from '../../context/ToastContext.jsx'
+import { api } from '../../utils/api.js'
 
 const tabs = ['All', 'Orders', 'Payments', 'Promotions', 'Announcements']
 
@@ -16,22 +16,34 @@ const categoryIcon = {
 export default function Notifications() {
   const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState('All')
-  const [items, setItems] = useState(seedNotifications)
+  const [items, setItems] = useState([])
+
+  useEffect(() => {
+    api.getAdminNotifications().then(setItems).catch((error) => showToast(error.message, 'error'))
+  }, [showToast])
 
   const filtered = activeTab === 'All' ? items : items.filter((n) => n.category === activeTab)
   const unreadCount = items.filter((n) => n.unread).length
 
   const markAllRead = () => {
-    setItems((prev) => prev.map((n) => ({ ...n, unread: false })))
-    showToast('All notifications marked as read', 'success')
+    api.markAdminNotificationsRead(items.map((item) => item.id))
+      .then(() => {
+        setItems((prev) => prev.map((n) => ({ ...n, unread: false })))
+        showToast('All notifications marked as read', 'success')
+      })
+      .catch((error) => showToast(error.message, 'error'))
   }
 
   const removeItem = (id) => {
-    setItems((prev) => prev.filter((n) => n.id !== id))
+    api.markAdminNotificationsRead([id]).then(() => {
+      setItems((prev) => prev.filter((n) => n.id !== id))
+    }).catch((error) => showToast(error.message, 'error'))
   }
 
   const openItem = (id) => {
-    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)))
+    api.markAdminNotificationsRead([id]).then(() => {
+      setItems((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)))
+    }).catch((error) => showToast(error.message, 'error'))
   }
 
   return (

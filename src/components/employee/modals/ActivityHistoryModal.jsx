@@ -1,5 +1,4 @@
 import { RefreshCcw, X, CheckCircle2, StickyNote, UserPlus2 } from 'lucide-react'
-import { activityLog } from '../../../data/employeeMockData.js'
 
 const typeIcon = {
   update: RefreshCcw,
@@ -15,7 +14,7 @@ const typeColor = {
   customer: '#EF4444',
 }
 
-export default function ActivityHistoryModal({ onClose, onRefresh }) {
+export default function ActivityHistoryModal({ onClose, onRefresh, items = [] }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box modal-md" onClick={(e) => e.stopPropagation()}>
@@ -27,7 +26,7 @@ export default function ActivityHistoryModal({ onClose, onRefresh }) {
           </div>
         </div>
         <div className="modal-body">
-          {activityLog.map((a) => {
+          {items.map((a) => {
             const Icon = typeIcon[a.type] || RefreshCcw
             return (
               <div key={a.id} className="flex-row gap-10" style={{ padding: '10px 0', borderBottom: '1px solid #EFEFEF', alignItems: 'flex-start' }}>
@@ -52,6 +51,7 @@ export default function ActivityHistoryModal({ onClose, onRefresh }) {
               </div>
             )
           })}
+          {!items.length && <div className="section-sub" style={{ padding: 20, textAlign: 'center' }}>No activity recorded yet.</div>}
         </div>
       </div>
     </div>

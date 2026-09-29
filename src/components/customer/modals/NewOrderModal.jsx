@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { UploadCloud, Wallet, Smartphone, Landmark, CreditCard } from 'lucide-react'
 import Modal from '../../Modal.jsx'
-import { customerProducts } from '../../../data/customerMockData.js'
 import { useCustomerProfile } from '../../../context/CustomerProfileContext.jsx'
+import { api } from '../../../utils/api.js'
 
 const paymentMethods = [
   { key: 'Cash', icon: Wallet },
@@ -11,8 +11,11 @@ const paymentMethods = [
   { key: 'Bank Transfer', icon: Landmark },
 ]
 
-export default function NewOrderModal({ onClose, onSave, initialProduct = null, products = customerProducts }) {
+export default function NewOrderModal({ onClose, onSave, initialProduct = null, products = [] }) {
+  if (!products.length) return null
   const { profile } = useCustomerProfile()
+  const [branches, setBranches] = useState([])
+  const [branchId, setBranchId] = useState('')
   const [customer, setCustomer] = useState({
     name: profile.name || '',
     contact: profile.phone || '',
@@ -29,6 +32,13 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
   const [notes, setNotes] = useState('')
   const [designFile, setDesignFile] = useState(null)
 
+  useEffect(() => {
+    api.getBranches().then((items) => {
+      setBranches(items)
+      if (items.length) setBranchId(String(items[0].id))
+    }).catch(() => setBranches([]))
+  }, [])
+
   const handleProductChange = (id) => {
     const next = products.find((p) => String(p.id) === String(id)) || products[0]
     setProductId(id)
@@ -43,10 +53,12 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
   const total = base - discount + delivery
 
   const handleSubmit = () => {
-    if (!customer.name.trim() || !customer.address.trim()) return
+    if (!customer.name.trim() || !customer.address.trim() || !branchId) return
     if (size === 'Custom' && !customSize.trim()) return
     onSave({
       product,
+      branchId,
+      branchCode: branches.find((branch) => String(branch.id) === branchId)?.code,
       size: size === 'Custom' ? customSize.trim() : size,
       material,
       quantity,
@@ -94,6 +106,12 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
           </div>
 
           <div className="section-title mb-16" style={{ marginTop: 8 }}>Order Configuration</div>
+          <div className="field">
+            <label>Branch</label>
+            <select className="input" value={branchId} onChange={(event) => setBranchId(event.target.value)} required>
+              {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+            </select>
+          </div>
           <div className="field">
             <label>Product</label>
             <select className="input" value={productId} onChange={(e) => handleProductChange(e.target.value)}>

@@ -5,6 +5,30 @@ from accounts.models import User
 
 
 class CustomerProfilePermissionTests(APITestCase):
+    def test_customer_login_ignores_existing_session_without_csrf_token(self):
+        User.objects.create_user(
+            username='session-admin',
+            password='test-password',
+            role=User.ADMIN,
+        )
+        User.objects.create_user(
+            username='session-customer',
+            password='customer-password',
+            role=User.CUSTOMER,
+            two_factor_enabled=False,
+        )
+        browser = self.client_class(enforce_csrf_checks=True)
+        browser.force_login(User.objects.get(username='session-admin'))
+
+        response = browser.post('/api/auth/login/', {
+            'username': 'session-customer',
+            'password': 'customer-password',
+            'device_id': 'test-device',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('token', response.data)
+
     def test_profile_update_rejects_role_escalation(self):
         customer = User.objects.create_user(
             username='profile-customer',

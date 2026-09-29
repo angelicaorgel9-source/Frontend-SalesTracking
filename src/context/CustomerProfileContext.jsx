@@ -5,9 +5,9 @@ import { api } from '../utils/api.js'
 const ProfileContext = createContext(null)
 
 const defaultProfile = {
-  name: 'Alexander Sterling',
-  email: 'alexander@mjprints.co',
-  phone: '+63 917 123 4567',
+  name: '',
+  email: '',
+  phone: '',
   role: 'Customer',
   avatar: logo,
 }
@@ -16,7 +16,14 @@ export function CustomerProfileProvider({ children }) {
   const [profile, setProfile] = useState(() => {
     try {
       const stored = localStorage.getItem('mjc:profile')
-      return stored ? JSON.parse(stored) : defaultProfile
+      const sessionUser = JSON.parse(localStorage.getItem('mjc:user') || 'null')
+      return sessionUser ? {
+        ...defaultProfile,
+        name: sessionUser.name || sessionUser.username,
+        email: sessionUser.email,
+        phone: sessionUser.phone || '',
+        two_factor_enabled: sessionUser.two_factor_enabled,
+      } : stored ? JSON.parse(stored) : defaultProfile
     } catch (error) {
       return defaultProfile
     }
@@ -46,11 +53,14 @@ export function CustomerProfileProvider({ children }) {
     }
   }, [profile])
 
-  const updateProfile = (updates) => {
-    setProfile((current) => ({ ...current, ...updates }))
-    if (localStorage.getItem('mjc:token')) {
-      api.updateProfile({ name: updates.name, phone: updates.phone, two_factor_enabled: updates.two_factor_enabled }).catch(() => {})
+  const updateProfile = async (updates) => {
+    if (!localStorage.getItem('mjc:token')) {
+      setProfile((current) => ({ ...current, ...updates }))
+      return
     }
+    const saved = await api.updateProfile({ name: updates.name, phone: updates.phone, two_factor_enabled: updates.two_factor_enabled })
+    setProfile((current) => ({ ...current, ...updates, name: saved.name || saved.username, email: saved.email, phone: saved.phone }))
+    return saved
   }
 
   const openEditProfile = () => setShowEditProfile(true)

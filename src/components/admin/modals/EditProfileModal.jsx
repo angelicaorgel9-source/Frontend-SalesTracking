@@ -1,15 +1,14 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Lock, UploadCloud } from 'lucide-react'
+import { Eye, EyeOff, Lock } from 'lucide-react'
 import Modal from '../../Modal.jsx'
 import { useAdminProfile } from '../../../context/AdminProfileContext.jsx'
 import { useToast } from '../../../context/ToastContext.jsx'
-import { adminPassword } from '../../../data/adminMockData.js'
+import { api } from '../../../utils/api.js'
 
 export default function EditProfileModal({ onClose }) {
   const { profile, updateProfile } = useAdminProfile()
   const { showToast } = useToast()
   const [name, setName] = useState(profile.name)
-  const [avatar, setAvatar] = useState(profile.avatar)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -18,14 +17,7 @@ export default function EditProfileModal({ onClose }) {
   const [showConfirm, setShowConfirm] = useState(false)
   const [errors, setErrors] = useState({})
 
-  const handlePhotoChange = (event) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      setAvatar(URL.createObjectURL(file))
-    }
-  }
-
-  const handleSave = () => {
+  const handleSave = async () => {
     const nextErrors = {}
 
     if (!name.trim()) {
@@ -43,9 +35,6 @@ export default function EditProfileModal({ onClose }) {
       if (newPassword && newPassword.length < 6) {
         nextErrors.newPassword = 'Password must be at least 6 characters.'
       }
-      if (currentPassword && currentPassword !== adminPassword) {
-        nextErrors.currentPassword = 'Current password is incorrect.'
-      }
     }
 
     if (Object.keys(nextErrors).length) {
@@ -53,16 +42,16 @@ export default function EditProfileModal({ onClose }) {
       return
     }
 
-    updateProfile({ name: name.trim(), avatar })
-    setErrors({})
-
-    if (passwordEntered) {
-      showToast('Profile and password successfully updated.', 'success')
-    } else {
-      showToast('Profile updated successfully.', 'success')
+    try {
+      const savedProfile = await api.updateMyProfile({ name: name.trim() })
+      updateProfile({ name: savedProfile.name, email: savedProfile.email })
+      if (passwordEntered) await api.changePassword(currentPassword, newPassword)
+      setErrors({})
+      showToast(passwordEntered ? 'Profile and password successfully updated.' : 'Profile updated successfully.', 'success')
+      onClose()
+    } catch (error) {
+      setErrors((previous) => ({ ...previous, currentPassword: error.message }))
     }
-
-    onClose()
   }
 
   return (
@@ -78,21 +67,6 @@ export default function EditProfileModal({ onClose }) {
         </>
       )}
     >
-      <div className="field" style={{ marginBottom: 24 }}>
-        <label>Profile Photo</label>
-        <div className="flex-row" style={{ alignItems: 'center', gap: 14 }}>
-          <img
-            src={avatar}
-            alt={name}
-            style={{ width: 72, height: 72, borderRadius: 16, objectFit: 'cover', border: '1px solid var(--color-border)' }}
-          />
-          <label className="btn btn-outline btn-sm" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <UploadCloud size={14} /> Change Photo
-            <input type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: 'none' }} />
-          </label>
-        </div>
-      </div>
-
       <div className="field">
         <label>Full Name</label>
         <input

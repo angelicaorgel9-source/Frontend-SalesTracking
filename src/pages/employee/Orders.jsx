@@ -1,22 +1,22 @@
 import { useState, useRef, useEffect } from 'react'
-import { ShoppingBag, UserCheck, DollarSign, Download, Upload, Plus, ChevronDown, LayoutGrid, List, Pencil, ArrowRightLeft } from 'lucide-react'
+import { ShoppingBag, UserCheck, DollarSign, Download, Plus, ChevronDown, LayoutGrid, List, Pencil, ArrowRightLeft } from 'lucide-react'
 import EmployeeLayout from '../../layouts/EmployeeLayout.jsx'
 import StatCard from '../../components/StatCard.jsx'
 import ActionMenu from '../../components/ActionMenu.jsx'
-import ConfirmModal from '../../components/ConfirmModal.jsx'
 import AddOrderModal from '../../components/employee/modals/AddOrderModal.jsx'
 import EditOrderModal from '../../components/employee/modals/EditOrderModal.jsx'
 import EditOrderStatusModal from '../../components/employee/modals/EditOrderStatusModal.jsx'
 import ViewOrderModal from '../../components/employee/modals/ViewOrderModal.jsx'
 import { useToast } from '../../context/ToastContext.jsx'
 import { api } from '../../utils/api.js'
+import { downloadCsv } from '../../utils/csv.js'
 
 const toUiStatus = (status) => {
   const mapping = {
     PLACED: 'Pending Proof',
     DESIGNING: 'In Production',
     PRINTING: 'Printing',
-    READY: 'Review',
+    READY: 'Shipped',
     COMPLETED: 'Completed',
     CANCELLED: 'Cancelled',
   }
@@ -52,14 +52,16 @@ const statusBadge = {
 
 let draftIdCounter = 1
 
-const statusOptions = ['All Statuses', 'Pending Proof', 'Printing', 'Completed', 'Shipped']
-const branchOptions = ['All Branches', 'Baliuag', 'Tangos']
-const dateOptions = ['mm/dd/yyyy', 'Today', 'This Week', 'This Month']
+const statusOptions = ['All Statuses', 'Pending Proof', 'In Production', 'Printing', 'Review', 'Completed', 'Cancelled', 'Shipped']
+const branchOptions = ['All Branches']
+const dateOptions = ['All Dates', 'Today', 'This Week', 'This Month']
 
 export default function Orders() {
   const { showToast } = useToast()
   const [view, setView] = useState('list')
   const [orders, setOrders] = useState([])
+  const [products, setProducts] = useState([])
+  const [branches, setBranches] = useState([])
   const [statFilter, setStatFilter] = useState(null)
   const [statusFilter, setStatusFilter] = useState(statusOptions[0])
   const [branchFilter, setBranchFilter] = useState(branchOptions[0])
@@ -74,14 +76,14 @@ export default function Orders() {
   const [editingDraft, setEditingDraft] = useState(null)
   const [drafts, setDrafts] = useState([])
 
-  const [showBulkImport, setShowBulkImport] = useState(false)
-  const [importing, setImporting] = useState(false)
 
   const [editOrder, setEditOrder] = useState(null)
   const [viewOrder, setViewOrder] = useState(null)
   const [statusOrder, setStatusOrder] = useState(null)
 
   useEffect(() => {
+    api.getProducts().then(setProducts).catch((error) => showToast(error.message, 'error'))
+    api.getBranches().then(setBranches).catch((error) => showToast(error.message, 'error'))
     let isActive = true
     const refreshOrders = async () => {
       try {
@@ -100,7 +102,7 @@ export default function Orders() {
             email: order.customer_email || 'No email provided',
             project: itemNames[0] || 'Custom Print Order',
             details: `(${(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)} units) ${details}`,
-            branch: 'Baliuag',
+            branch: order.branch_name || 'Unassigned',
             status: toUiStatus(order.status),
             statusType: toUiStatusType(order.status),
             backendStatus: order.status,
@@ -137,27 +139,44 @@ export default function Orders() {
     .filter((order) => order.backendStatus !== 'CANCELLED')
     .reduce((total, order) => total + order.totalAmount, 0)
 
-  const handleSubmitOrder = (order) => {
-    const newOrder = {
-      id: `ORD-2023-${Math.floor(Math.random() * 9000) + 1000}`,
-      minutesAgo: 'Just now',
-      customer: order.customer.name,
-      initials: order.customer.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'NC',
-      email: order.customer.email,
-      project: 'Custom T-Shirt Order',
-      details: `(${order.quantity} units) Size ${order.size}, Screen Printing`,
-      branch: 'Baliuag',
-      status: 'Pending Proof',
-      statusType: 'warning',
-      value: `₱${order.total.toLocaleString()}.00`,
+  const handleSubmitOrder = async (order) => {
+    try {
+      const saved = await api.createOrder({
+        branch: order.branchId,
+        branch_id: order.branchId,
+        branch_code: order.branchCode,
+        customer_name: order.customer.name,
+        customer_phone: order.customer.contact,
+        customer_email: order.customer.email,
+        payment_method: order.payment.toUpperCase() === 'GCASH' ? 'GCASH' : 'CASH',
+        items: [{ product: order.productId, item_name: order.productName, quantity: order.quantity, unit_price: order.unitPrice, specifications: `Size ${order.size}; color ${order.color}` }],
+      })
+      const newOrder = {
+        id: saved.transaction_id,
+        minutesAgo: 'Just now',
+        createdAt: saved.created_at,
+        customer: saved.customer_name,
+        initials: saved.customer_name.trim().split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+        email: saved.customer_email,
+        project: order.productName,
+        details: `(${order.quantity} units) Size ${order.size}`,
+        branch: saved.branch_name || 'Unassigned',
+        status: toUiStatus(saved.status),
+        statusType: toUiStatusType(saved.status),
+        backendStatus: saved.status,
+        totalAmount: Number(saved.total_amount || 0),
+        value: peso(saved.total_amount),
+        dueDate: saved.estimated_completion || '',
+        quantity: order.quantity,
+      }
+      setOrders((prev) => [newOrder, ...prev])
+      if (editingDraft) setDrafts((prev) => prev.filter((draft) => draft.id !== editingDraft.id))
+      setShowAddOrder(false)
+      setEditingDraft(null)
+      showToast(`Order ${saved.transaction_id} created`, 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
     }
-    setOrders((prev) => [newOrder, ...prev])
-    if (editingDraft) {
-      setDrafts((prev) => prev.filter((d) => d.id !== editingDraft.id))
-    }
-    setShowAddOrder(false)
-    setEditingDraft(null)
-    showToast('Order created successfully', 'success')
   }
 
   const handleSaveDraft = (order) => {
@@ -183,40 +202,48 @@ export default function Orders() {
     showToast('Draft removed', 'info')
   }
 
-  const handleConfirmImport = () => {
-    setImporting(true)
-    setTimeout(() => {
-      setImporting(false)
-      setShowBulkImport(false)
-      const success = Math.random() > 0.2
-      showToast(
-        success ? 'Order import completed successfully' : 'Order import failed. Please review the file and try again.',
-        success ? 'success' : 'error',
-      )
-    }, 900)
+  const handleSaveEditOrder = async (updated) => {
+    try {
+      const statusMap = { 'Pending Proof': 'PLACED', Printing: 'PRINTING', 'In Production': 'DESIGNING', Completed: 'COMPLETED', Shipped: 'READY' }
+      const payload = {
+        customer_name: updated.customerName,
+        estimated_completion: updated.dueDate || null,
+        total_amount: Number(updated.value || 0),
+        status: statusMap[updated.status] || 'PLACED',
+      }
+      await api.updateStaffOrder(updated.id, payload)
+      setOrders((prev) => prev.map((order) => order.id === updated.id ? {
+        ...order,
+        customer: updated.customerName,
+        status: toUiStatus(payload.status),
+        statusType: toUiStatusType(payload.status),
+        backendStatus: payload.status,
+        dueDate: updated.dueDate,
+        totalAmount: payload.total_amount,
+        value: peso(payload.total_amount),
+      } : order))
+      setEditOrder(null)
+      showToast('Order updated successfully', 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
   }
 
-  const handleSaveEditOrder = (updated) => {
-    setOrders((prev) => prev.map((o) => (o.id === updated.id ? {
-      ...o,
-      customer: updated.customerName,
-      project: updated.project,
-      status: updated.status,
-      branch: updated.branch,
-      value: updated.value ? `₱${updated.value}` : o.value,
-    } : o)))
-    setEditOrder(null)
-    showToast('Order updated successfully', 'success')
-  }
-
-  const handleSaveOrderStatus = (updated) => {
-    setOrders((prev) => prev.map((o) => (o.id === updated.id ? {
-      ...o,
-      status: updated.stage,
-      statusType: updated.stage === 'Completed' ? 'success' : updated.stage === 'In Production' ? 'danger' : 'warning',
-    } : o)))
-    setStatusOrder(null)
-    showToast('Order status updated', 'success')
+  const handleSaveOrderStatus = async (updated) => {
+    try {
+      const status = { Preparing: 'PLACED', 'In Production': 'DESIGNING', Completed: 'COMPLETED' }[updated.stage]
+      await api.updateOrderStatus(updated.id, status)
+      setOrders((prev) => prev.map((order) => order.id === updated.id ? {
+        ...order,
+        status: toUiStatus(status),
+        statusType: toUiStatusType(status),
+        backendStatus: status,
+      } : order))
+      setStatusOrder(null)
+      showToast('Order status updated', 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
   }
 
   const filteredOrders = orders.filter((o) => {
@@ -224,9 +251,28 @@ export default function Orders() {
       || o.status === statusFilter
       || (statusFilter === 'All Statuses' && true)
     const branchMatch = branchFilter === branchOptions[0] || o.branch === branchFilter
-    const statMatch = statFilter === 'pending' ? o.statusType === 'warning' : true
-    return statusMatch && branchMatch && statMatch
+    const statMatch = statFilter === 'pending' ? o.backendStatus === 'PLACED' : true
+    const createdAt = o.createdAt ? new Date(o.createdAt) : null
+    const now = new Date()
+    const weekStart = new Date(now)
+    weekStart.setHours(0, 0, 0, 0)
+    weekStart.setDate(now.getDate() - now.getDay())
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const dateMatch = dateFilter === 'All Dates'
+      || (dateFilter === 'Today' && createdAt?.toDateString() === now.toDateString())
+      || (dateFilter === 'This Week' && createdAt >= weekStart)
+      || (dateFilter === 'This Month' && createdAt >= monthStart)
+    return statusMatch && branchMatch && statMatch && dateMatch
   })
+
+  const exportOrders = () => {
+    downloadCsv({
+      filename: 'orders.csv',
+      columns: ['Transaction ID', 'Customer', 'Email', 'Branch', 'Status', 'Total', 'Created At'],
+      rows: filteredOrders.map((order) => [order.id, order.customer, order.email, order.branch, order.status, order.totalAmount, order.createdAt]),
+    })
+    showToast('Orders exported', 'success')
+  }
 
   useEffect(() => {
     const onMove = (e) => {
@@ -284,6 +330,7 @@ export default function Orders() {
             onChange={(e) => setBranchFilter(e.target.value)}
           >
             {branchOptions.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+            {branches.map((branch) => <option key={branch.id} value={branch.name}>{branch.name}</option>)}
           </select>
           <select
             className={`chip-filter chip-filter-select${dateFilter !== dateOptions[0] ? ' active' : ''}`}
@@ -375,8 +422,7 @@ export default function Orders() {
       <div className="flex-between mb-16">
         <span className="chip-filter active">Main Hub - baliuag <ChevronDown size={13} style={{ marginLeft: 4 }} /></span>
         <div className="flex-row gap-8">
-          <button className="btn btn-outline btn-sm" onClick={() => setShowBulkImport(true)}><Upload /> Bulk Import</button>
-          <button className="btn btn-outline btn-sm" onClick={() => showToast('Orders exported', 'success')}><Download /> Bulk Export</button>
+          <button className="btn btn-outline btn-sm" onClick={exportOrders}><Download /> Export CSV</button>
           <button className="btn btn-primary btn-sm" onClick={() => { setEditingDraft(null); setShowAddOrder(true) }}><Plus /> Add Order</button>
         </div>
       </div>
@@ -437,20 +483,13 @@ export default function Orders() {
         <AddOrderModal
           onClose={() => { setShowAddOrder(false); setEditingDraft(null) }}
           onSave={handleSubmitOrder}
+          products={products}
+          branches={branches}
           onSaveDraft={handleSaveDraft}
           initialDraft={editingDraft}
           drafts={drafts}
           onEditDraft={handleEditDraft}
           onRemoveDraft={handleRemoveDraft}
-        />
-      )}
-
-      {showBulkImport && (
-        <ConfirmModal
-          title="Import All New Orders?"
-          onCancel={() => setShowBulkImport(false)}
-          onConfirm={handleConfirmImport}
-          busy={importing}
         />
       )}
 

@@ -28,16 +28,24 @@ export default function Notifications() {
   const unreadCount = items.filter((n) => n.unread).length
 
   const markAllRead = () => {
-    setItems((prev) => prev.map((n) => ({ ...n, unread: false })))
-    showToast('All notifications marked as read', 'success')
+    api.markEmployeeNotificationsRead(items.map((item) => item.id))
+      .then(() => {
+        setItems((prev) => prev.map((item) => ({ ...item, unread: false })))
+        showToast('All notifications marked as read', 'success')
+      })
+      .catch((error) => showToast(error.message, 'error'))
   }
 
   const removeItem = (id) => {
-    setItems((prev) => prev.filter((n) => n.id !== id))
+    api.markEmployeeNotificationsRead([id]).then(() => {
+      setItems((prev) => prev.filter((item) => item.id !== id))
+    }).catch((error) => showToast(error.message, 'error'))
   }
 
   const openItem = (id) => {
-    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)))
+    api.markEmployeeNotificationsRead([id]).then(() => {
+      setItems((prev) => prev.map((item) => (item.id === id ? { ...item, unread: false } : item)))
+    }).catch((error) => showToast(error.message, 'error'))
   }
 
   return (

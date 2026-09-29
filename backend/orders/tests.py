@@ -1,5 +1,7 @@
 from rest_framework import status
 from rest_framework.test import APITestCase
+import calendar
+from django.utils import timezone
 
 from accounts.models import User
 from branches.models import Branch
@@ -9,7 +11,7 @@ from orders.models import Order
 
 class BranchScopedOrderTests(APITestCase):
     def setUp(self):
-        self.branch = Branch.objects.create(name='Baliuag', code='baliuag')
+        self.branch, _ = Branch.objects.get_or_create(code='baliuag', defaults={'name': 'Baliuag'})
         self.product = Product.objects.create(name='Test Product', price=100)
         self.employee = User.objects.create_user(
             username='test-employee', password='test-password', role=User.EMPLOYEE,
@@ -29,7 +31,7 @@ class BranchScopedOrderTests(APITestCase):
         self.assertEqual(response.data['total_amount'], '200.00')
 
     def test_sales_summary_breaks_down_by_branch(self):
-        other_branch = Branch.objects.create(name='Tangos', code='tangos')
+        other_branch, _ = Branch.objects.get_or_create(code='tangos', defaults={'name': 'Tangos'})
         Order.objects.create(
             branch=self.branch, customer_name='A', customer_phone='1',
             total_amount=100, status=Order.STATUS_PLACED,
@@ -50,6 +52,20 @@ class BranchScopedOrderTests(APITestCase):
         branch_totals = {row['branch_name']: float(row['total']) for row in response.data['daily_by_branch']}
         self.assertEqual(branch_totals['Baliuag'], 100.0)
         self.assertEqual(branch_totals['Tangos'], 50.0)
+
+    def test_branch_analytics_is_empty_and_zero_filled_for_each_period(self):
+        self.client.force_authenticate(self.employee)
+        today = timezone.localdate()
+        periods = {'daily': 24, 'weekly': 7, 'monthly': calendar.monthrange(today.year, today.month)[1], 'quarterly': 3, 'yearly': 12}
+
+        for period, bucket_count in periods.items():
+            response = self.client.get('/api/sales/analytics/', {'branch': self.branch.id, 'period': period})
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(response.data['branch']['name'], 'Baliuag')
+            self.assertEqual(response.data['sales_total'], 0)
+            self.assertEqual(response.data['order_count'], 0)
+            self.assertEqual(len(response.data['series']), bucket_count)
+            self.assertTrue(all(bucket['sales'] == 0 and bucket['orders'] == 0 for bucket in response.data['series']))
 
     def test_only_admin_can_write_inventory(self):
         Inventory.objects.create(branch=self.branch, product=self.product, quantity=10)

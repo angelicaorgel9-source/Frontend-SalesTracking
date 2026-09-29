@@ -87,7 +87,7 @@ export default function Dashboard() {
           <div className="section-sub">Here&rsquo;s what&rsquo;s happening in the workshop today.</div>
         </div>
         <span className="pill">
-          Production Unit A
+          {profile?.branch_name || 'Unassigned'}
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#16A34A', display: 'inline-block' }} />
         </span>
       </div>
@@ -197,6 +197,7 @@ export default function Dashboard() {
         <ActivityHistoryModal
           onClose={() => setShowActivity(false)}
           onRefresh={() => showToast('Activity refreshed', 'info')}
+          items={activityLog}
         />
       )}
     </EmployeeLayout>

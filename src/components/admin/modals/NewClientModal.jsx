@@ -37,10 +37,6 @@ export default function NewClientModal({ onClose, onSave }) {
         <label>Email Address</label>
         <input className="input" type="email" placeholder="client@email.com" value={form.email} onChange={update('email')} />
       </div>
-      <div className="field" style={{ marginBottom: 0 }}>
-        <label>Delivery Address</label>
-        <input className="input" placeholder="Street, City, Province" value={form.address} onChange={update('address')} />
-      </div>
     </Modal>
   )
 }

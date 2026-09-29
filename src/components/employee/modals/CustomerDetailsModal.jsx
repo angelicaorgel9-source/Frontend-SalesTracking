@@ -12,7 +12,7 @@ export default function CustomerDetailsModal({ customer, onClose, onEdit }) {
       headerVariant="white"
       actions={(
         <>
-          <button className="btn btn-outline" onClick={onEdit}>Edit Customer Profile</button>
+          {onEdit && <button className="btn btn-outline" onClick={onEdit}>Edit Customer Profile</button>}
           <button className="btn btn-primary" onClick={onClose}>Close</button>
         </>
       )}
@@ -25,7 +25,7 @@ export default function CustomerDetailsModal({ customer, onClose, onEdit }) {
             <div className="cell-sub">{customer.company}</div>
           </div>
         </div>
-        <button className="btn btn-primary btn-sm"><Mail size={13} /> Contact</button>
+        <a className="btn btn-primary btn-sm" href={`mailto:${customer.email}`}><Mail size={13} /> Contact</a>
       </div>
 
       <div className="two-col" style={{ gridTemplateColumns: '1.3fr 1fr', marginBottom: 16 }}>
@@ -48,27 +48,7 @@ export default function CustomerDetailsModal({ customer, onClose, onEdit }) {
         </div>
       </div>
 
-      <div className="section-sub mb-16" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Recent Orders</div>
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Order ID</th>
-              <th>Project Name</th>
-              <th>Date</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="cell-primary" style={{ color: 'var(--color-primary)' }}>#{customer.id}841</td>
-              <td>{customer.lastNote}</td>
-              <td className="text-secondary">{customer.lastDate}</td>
-              <td><span className="badge badge-success">Completed</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <div className="section-sub">{customer.orders ? `${customer.orders} recorded orders · latest ${customer.lastDate}` : 'No orders recorded.'}</div>
     </Modal>
   )
 }

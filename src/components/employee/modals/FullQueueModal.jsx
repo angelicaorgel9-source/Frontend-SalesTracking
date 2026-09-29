@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Search, X, AlertTriangle } from 'lucide-react'
-import { productionQueue } from '../../../data/employeeMockData.js'
+import { api } from '../../../utils/api.js'
 
 const statusBadge = {
   Queued: 'badge-neutral',
@@ -12,12 +12,23 @@ const statusBadge = {
 const tabs = ['All Status', 'Queued', 'In Progress']
 
 export default function FullQueueModal({ onClose, onViewOrder }) {
+  const [orders, setOrders] = useState([])
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState('All Status')
   const [page, setPage] = useState(1)
   const pageSize = 5
 
-  const filtered = productionQueue.filter((o) => {
+  useEffect(() => {
+    api.getOrders().then((records) => setOrders(records.map((order) => ({
+      id: order.transaction_id,
+      customer: order.customer_name,
+      details: (order.items || []).map((item) => item.product_name).join(', '),
+      status: { PLACED: 'Queued', DESIGNING: 'In Progress', PRINTING: 'In Progress', READY: 'Review', COMPLETED: 'Completed', CANCELLED: 'Cancelled' }[order.status] || order.status,
+      priority: order.status === 'DESIGNING' || order.status === 'PRINTING' ? 'urgent' : 'up',
+    })))).catch(() => setOrders([]))
+  }, [])
+
+  const filtered = orders.filter((o) => {
     const tabMatch = tab === 'All Status' || o.status === tab
     const searchMatch = !search
       || o.id.toLowerCase().includes(search.toLowerCase())

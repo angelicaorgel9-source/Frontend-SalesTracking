@@ -27,6 +27,21 @@ class CustomerProfileUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({field: 'This field cannot be changed here.' for field in attempted_fields})
         return attrs
 
+class AdminCustomerUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['name', 'email', 'phone', 'is_active']
+
+class EmployeeUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['name', 'email', 'phone', 'branch', 'is_active', 'role']
+
+
+class AccountProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['name', 'email', 'phone']
 
 class CustomerSignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)

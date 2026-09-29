@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import Sidebar from '../components/employee/Sidebar.jsx'
 import Topbar from '../components/Topbar.jsx'
-import { notifications } from '../data/employeeMockData.js'
+import { api } from '../utils/api.js'
 
 export default function EmployeeLayout({ children, topbarProps }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [hasUnread, setHasUnread] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       const v = localStorage.getItem('mje:sidebarCollapsed')
@@ -16,6 +17,10 @@ export default function EmployeeLayout({ children, topbarProps }) {
   })
 
   const location = useLocation()
+
+  useEffect(() => {
+    api.getEmployeeNotifications().then((items) => setHasUnread(items.some((item) => item.unread))).catch(() => setHasUnread(false))
+  }, [location.pathname])
 
   useEffect(() => {
     try {
@@ -29,8 +34,6 @@ export default function EmployeeLayout({ children, topbarProps }) {
   useEffect(() => {
     setSidebarOpen(false)
   }, [location.pathname])
-
-  const hasUnread = notifications.some((n) => n.unread)
 
   return (
     <div className={`admin-shell ${sidebarCollapsed ? 'collapsed-sidebar' : ''}`} style={{ display: 'flex', alignItems: 'stretch' }}>
