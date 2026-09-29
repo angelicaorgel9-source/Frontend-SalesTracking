@@ -16,8 +16,8 @@ export const customerRegistry = [
 
 export const orders = [
   { id: 'ORD-2023-8902', minutesAgo: '2 mins ago', customer: 'Global Logistics Co.', initials: 'GL', email: 'sarah@globallog.com', project: 'Vinyl Banners', details: '(500 units) High Gloss, 13oz Heavy Duty', branch: 'Baliuag', status: 'Pending Proof', statusType: 'warning', value: '₱4,250.00' },
-  { id: 'ORD-2023-8899', minutesAgo: '1 hour ago', customer: 'Metro Kitchens', initials: 'MK', email: 'billing@metrokitchens.io', project: 'Business Cards (2k)', details: '32pt Silk Touch, Gold Foil', branch: 'Tangos-Baliuag', status: 'Printing', statusType: 'danger', value: '₱890.00' },
-  { id: 'ORD-2023-8894', minutesAgo: '4 hours ago', customer: 'Apex Studios', initials: 'AS', email: 'jason@apex.design', project: 'Acrylic Lobby Signage', details: 'Standoff Mount, Backlit LED', branch: 'Piel', status: 'Completed', statusType: 'success', value: '₱1,850.50' },
+  { id: 'ORD-2023-8899', minutesAgo: '1 hour ago', customer: 'Metro Kitchens', initials: 'MK', email: 'billing@metrokitchens.io', project: 'Business Cards (2k)', details: '32pt Silk Touch, Gold Foil', branch: 'Tangos', status: 'Printing', statusType: 'danger', value: '₱890.00' },
+  { id: 'ORD-2023-8894', minutesAgo: '4 hours ago', customer: 'Apex Studios', initials: 'AS', email: 'jason@apex.design', project: 'Acrylic Lobby Signage', details: 'Standoff Mount, Backlit LED', branch: 'Tangos', status: 'Completed', statusType: 'success', value: '₱1,850.50' },
   { id: 'ORD-2023-8560', minutesAgo: 'Yesterday', customer: 'Urban Realty', initials: 'UR', email: 'info@urban.com', project: 'Yard Signs (50 units)', details: 'Double-sided, H-Stakes', branch: 'Baliuag', status: 'Shipped', statusType: 'neutral', value: '₱650.00' },
 ]
 
@@ -48,16 +48,13 @@ export const customerGrowthTrend = [
 ]
 
 export const branchPerformance = [
-  { branch: 'Poblacion', volume: '482 orders', revenue: '₱52,400.00', efficiency: '98.2%', status: 'Active', trend: '4.2%', trendDir: 'up' },
-  { branch: 'Branch 2', volume: '312 orders', revenue: '₱38,150.00', efficiency: '92.5%', status: 'Active', trend: '1.8%', trendDir: 'up' },
-  { branch: 'Branch 3', volume: '254 orders', revenue: '₱28,900.00', efficiency: '88.4%', status: 'Active', trend: '0.5%', trendDir: 'down' },
-  { branch: 'Branch 4', volume: '236 orders', revenue: '₱23,400.00', efficiency: '94.1%', status: 'Active', trend: '8.4%', trendDir: 'up' },
+  { branch: 'Baliuag', volume: '482 orders', revenue: '₱52,400.00', efficiency: '98.2%', status: 'Active', trend: '4.2%', trendDir: 'up' },
+  { branch: 'Tangos', volume: '312 orders', revenue: '₱38,150.00', efficiency: '92.5%', status: 'Active', trend: '1.8%', trendDir: 'up' },
 ]
 
 export const branchProfiles = [
   { name: 'Baliuag', tag: 'Main Production Hub', location: 'Baliuag, Bayan', status: 'Active' },
-  { name: 'Tangos - baliuag', tag: 'Design & Prototyping', location: 'Tangos, Baliuag', status: 'Active' },
-  { name: 'Sabang', tag: 'Distribution Center', location: 'Sabang, Baliuag', status: 'Maintenance' },
+  { name: 'Tangos', tag: 'Print Shop', location: 'Tangos, Baliuag', status: 'Active' },
 ]
 
 // Mock admin credential for local verification (UI-only)

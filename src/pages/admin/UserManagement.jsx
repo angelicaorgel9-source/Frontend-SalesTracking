@@ -27,7 +27,7 @@ export default function UserManagement() {
   const [middleName, setMiddleName] = useState('')
   const [surname, setSurname] = useState('')
   const [gender, setGender] = useState('Female')
-  const [branch, setBranch] = useState('Main Hub - baliuag')
+  const [branch, setBranch] = useState('Baliuag')
   const [role, setRole] = useState('')
   const [credentials, setCredentials] = useState(null)
 
@@ -105,9 +105,8 @@ export default function UserManagement() {
             <div className="field">
               <label>Branch Assessment</label>
               <select className="input" value={branch} onChange={(e) => setBranch(e.target.value)}>
-                <option>Main Hub - baliuag</option>
-                <option>Tangos - baliuag</option>
-                <option>Sabang</option>
+                <option>Baliuag</option>
+                <option>Tangos</option>
               </select>
             </div>
             <div className="field">

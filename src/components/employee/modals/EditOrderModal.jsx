@@ -99,8 +99,7 @@ export default function EditOrderModal({ order, onClose, onSave }) {
           <label>Production Branch</label>
           <select className="input" value={form.branch} onChange={update('branch')}>
             <option>Baliuag</option>
-            <option>Tangos - Baliuag</option>
-            <option>Sabang</option>
+            <option>Tangos</option>
           </select>
         </div>
       </div>

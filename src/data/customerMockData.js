@@ -139,7 +139,7 @@ export const customerOrders = [
     placedAt: 'Oct 24, 2024 · 09:15 AM',
     lastUpdated: '2 hours ago',
     currentStep: 2,
-    branch: 'Baliuag',
+    branch: 'Tangos',
     items: [
       { name: 'Premium Silk Finish Business Cards', qty: '500 Units • 400gsm', price: 145.0 },
       { name: 'Large Format Vinyl Banner', qty: '1 Unit • 6ft x 3ft', price: 89.0 },
@@ -152,7 +152,7 @@ export const customerOrders = [
     placedAt: 'Oct 18, 2024 · 02:40 PM',
     lastUpdated: '3 days ago',
     currentStep: 4,
-    branch: 'Tangos-Baliuag',
+    branch: 'Baliuag',
     items: [
       { name: 'Custom Apparel — Dri-Fit Polo', qty: '20 Units • Size M-XL', price: 5200.0 },
     ],
@@ -177,7 +177,7 @@ export const customerOrders = [
     placedAt: 'Sep 21, 2024 · 04:12 PM',
     lastUpdated: '1 month ago',
     currentStep: 1,
-    branch: 'Piel',
+    branch: 'Tangos',
     items: [
       { name: 'Tri-fold Flyers', qty: '2 reams • A4', price: 1000.0 },
     ],

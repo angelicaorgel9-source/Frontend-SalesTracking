@@ -21,7 +21,7 @@ const statusBadge = {
 let draftIdCounter = 1
 
 const statusOptions = ['All Statuses', 'Pending Proof', 'Printing', 'Completed', 'Shipped']
-const branchOptions = ['All Branches', 'Baliuag', 'Tangos-Baliuag', 'Piel']
+const branchOptions = ['All Branches', 'Baliuag', 'Tangos']
 const dateOptions = ['mm/dd/yyyy', 'Today', 'This Week', 'This Month']
 
 export default function Orders() {

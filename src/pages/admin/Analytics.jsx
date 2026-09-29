@@ -7,7 +7,7 @@ import { downloadPdfReport } from '../../utils/pdf.js'
 import { useToast } from '../../context/ToastContext.jsx'
 
 const tabs = ['Monthly', 'Quarterly', 'Yearly']
-const branchOptions = ['Main Hub - Baliwag', 'Tibag', 'Sabang']
+const branchOptions = ['Baliuag', 'Tangos']
 
 export default function Analytics() {
   const { showToast } = useToast()
@@ -126,7 +126,7 @@ export default function Analytics() {
             <tbody>
               {branchPerformance.map((b) => (
                 <tr key={b.branch}>
-                  <td className="cell-primary" style={{ color: b.branch === 'Poblacion' ? 'var(--color-success)' : 'var(--color-primary)' }}>{b.branch}</td>
+                  <td className="cell-primary" style={{ color: b.branch === 'Baliuag' ? 'var(--color-success)' : 'var(--color-primary)' }}>{b.branch}</td>
                   <td className="text-secondary">{b.volume}</td>
                   <td className="cell-primary">{b.revenue}</td>
                   <td className="text-secondary">{b.efficiency}</td>
