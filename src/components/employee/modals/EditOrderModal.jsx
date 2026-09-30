@@ -3,6 +3,7 @@ import { Info, Boxes, DollarSign, Save } from 'lucide-react'
 import Modal from '../../Modal.jsx'
 
 export default function EditOrderModal({ order, onClose, onSave }) {
+  const pickup = order?.fulfillment_method === 'PICKUP'
   const [form, setForm] = useState({
     customerName: order?.customer || '',
     project: order?.project || '',
@@ -73,8 +74,9 @@ export default function EditOrderModal({ order, onClose, onSave }) {
             <option>Pending Proof</option>
             <option>Printing</option>
             <option>In Production</option>
+            <option>{pickup ? 'Ready for Pickup' : 'Ready for Delivery'}</option>
+            <option>{pickup ? 'Order Picked Up' : 'Order Delivered'}</option>
             <option>Completed</option>
-            <option>Shipped</option>
           </select>
         </div>
         <div className="field">

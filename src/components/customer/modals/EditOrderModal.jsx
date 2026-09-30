@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import Modal from '../../Modal.jsx'
 
-const paymentMethods = ['Cash', 'GCash', 'Maya', 'Bank Transfer']
+const paymentMethods = [
+  { value: 'CASH', label: 'Cash' },
+  { value: 'QRPH', label: 'QR Ph' },
+]
 
 export default function EditOrderModal({ order, onClose, onSave }) {
   const [name, setName] = useState(order.customer_name || '')
   const [phone, setPhone] = useState(order.customer_phone || '')
   const [email, setEmail] = useState(order.customer_email || '')
-  const [payment, setPayment] = useState(order.payment_method || 'CASH')
+  const [payment, setPayment] = useState(order.payment_method === 'QRPH' ? 'QRPH' : 'CASH')
   const [notes, setNotes] = useState(order.items?.[0]?.specifications || '')
 
   const handleSubmit = () => {
@@ -15,7 +18,7 @@ export default function EditOrderModal({ order, onClose, onSave }) {
       customerName: name.trim(),
       customerPhone: phone.trim(),
       customerEmail: email.trim(),
-      paymentMethod: payment.toUpperCase() === 'GCASH' ? 'GCASH' : payment.toUpperCase() === 'CARD' ? 'CARD' : 'CASH',
+      paymentMethod: payment,
       notes: notes.trim(),
     })
   }
@@ -48,7 +51,7 @@ export default function EditOrderModal({ order, onClose, onSave }) {
       <div className="field">
         <label>Payment Method</label>
         <select className="input" value={payment} onChange={(event) => setPayment(event.target.value)}>
-          {paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}
+          {paymentMethods.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
         </select>
       </div>
       <div className="field" style={{ marginBottom: 0 }}>

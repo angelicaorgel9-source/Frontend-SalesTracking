@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import transaction
 from rest_framework import serializers
 
@@ -23,25 +25,41 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = ['id', 'transaction_id', 'branch', 'branch_name', 'customer_name', 'customer_phone', 'customer_email',
-                  'status', 'payment_method', 'total_amount', 'created_by', 'created_at',
-                  'updated_at', 'estimated_completion', 'items']
-        read_only_fields = ['transaction_id', 'total_amount', 'created_by', 'created_at', 'updated_at']
+              'status', 'payment_method', 'fulfillment_method', 'delivery_fee', 'delivery_address',
+              'total_amount', 'created_by', 'created_at', 'updated_at', 'estimated_completion', 'items']
+        read_only_fields = ['transaction_id', 'delivery_fee', 'total_amount', 'created_by', 'created_at', 'updated_at']
 
     def validate_items(self, value):
         if not value:
             raise serializers.ValidationError('An order needs at least one item.')
         return value
 
+    def validate(self, attrs):
+        request = self.context.get('request')
+        fulfillment_method = attrs.get('fulfillment_method', Order.FULFILLMENT_DELIVERY)
+        delivery_address = attrs.get('delivery_address', '').strip()
+        if (
+            request and request.user.is_authenticated
+            and request.user.role == 'CUSTOMER'
+            and fulfillment_method == Order.FULFILLMENT_DELIVERY
+            and not delivery_address
+        ):
+            raise serializers.ValidationError({'delivery_address': 'A delivery address is required for delivery orders.'})
+        return attrs
+
     def create(self, validated_data):
         items_data = validated_data.pop('items')
         request = self.context.get('request')
+        fulfillment_method = validated_data.get('fulfillment_method', Order.FULFILLMENT_DELIVERY)
+        delivery_fee = Order.DELIVERY_FEE if fulfillment_method == Order.FULFILLMENT_DELIVERY else Decimal('0.00')
 
         with transaction.atomic():
             order = Order.objects.create(
+                delivery_fee=delivery_fee,
                 created_by=request.user if request and request.user.is_authenticated else None,
                 **validated_data,
             )
-            total = 0
+            total = Decimal('0.00')
             for item_data in items_data:
                 product = item_data['product']
                 unit_price = item_data.get('unit_price') or product.price
@@ -53,7 +71,7 @@ class OrderSerializer(serializers.ModelSerializer):
                     specifications=item_data.get('specifications', ''),
                 )
                 total += order_item.subtotal
-            order.total_amount = total
+            order.total_amount = total + delivery_fee
             order.save()
         return order
 
@@ -73,4 +91,7 @@ class OrderTrackSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ['transaction_id', 'branch_name', 'status', 'created_at', 'estimated_completion', 'items']
+        fields = [
+            'transaction_id', 'branch_name', 'status', 'fulfillment_method', 'delivery_fee',
+            'delivery_address', 'total_amount', 'created_at', 'updated_at', 'estimated_completion', 'items',
+        ]

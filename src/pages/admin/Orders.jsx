@@ -20,7 +20,7 @@ const statusBadge = {
 
 let draftIdCounter = 1
 
-const statusOptions = ['All Statuses', 'Pending Proof', 'In Production', 'Printing', 'Review', 'Completed', 'Cancelled', 'Shipped']
+const statusOptions = ['All Statuses', 'Pending Proof', 'In Production', 'Printing', 'Review', 'Ready for Pickup', 'Ready for Delivery', 'Order Picked Up', 'Order Delivered', 'Completed', 'Cancelled']
 const branchOptions = ['All Branches']
 const dateOptions = ['All Dates', 'Today', 'This Week', 'This Month']
 
@@ -53,7 +53,16 @@ export default function Orders() {
     const records = await api.getOrders()
     setOrders(records.map((order) => {
       const item = order.items?.[0]
-      const status = { PLACED: 'Pending Proof', DESIGNING: 'In Production', PRINTING: 'Printing', READY: 'Shipped', COMPLETED: 'Completed', CANCELLED: 'Cancelled' }[order.status] || order.status
+      const status = {
+        PLACED: 'Pending Proof',
+        DESIGNING: 'In Production',
+        PRINTING: 'Printing',
+        READY: order.fulfillment_method === 'PICKUP' ? 'Ready for Pickup' : 'Ready for Delivery',
+        PICKED_UP: 'Order Picked Up',
+        DELIVERED: 'Order Delivered',
+        COMPLETED: 'Completed',
+        CANCELLED: 'Cancelled',
+      }[order.status] || order.status
       return {
         ...order,
         id: order.transaction_id,
@@ -65,7 +74,7 @@ export default function Orders() {
         details: `${order.items?.reduce((sum, row) => sum + Number(row.quantity || 0), 0) || 0} unit(s)`,
         branch: order.branch_name || 'Unassigned',
         status,
-        statusType: order.status === 'COMPLETED' ? 'success' : order.status === 'PRINTING' || order.status === 'DESIGNING' ? 'danger' : 'warning',
+        statusType: ['PICKED_UP', 'DELIVERED', 'COMPLETED'].includes(order.status) ? 'success' : order.status === 'PRINTING' || order.status === 'DESIGNING' ? 'danger' : 'warning',
         backendStatus: order.status,
         value: `₱${Number(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
         totalAmount: Number(order.total_amount || 0),
@@ -125,7 +134,16 @@ export default function Orders() {
 
   const handleSaveEditOrder = async (updated) => {
     try {
-      const status = { 'Pending Proof': 'PLACED', Printing: 'PRINTING', 'In Production': 'DESIGNING', Completed: 'COMPLETED', Shipped: 'READY' }[updated.status]
+      const status = {
+        'Pending Proof': 'PLACED',
+        Printing: 'PRINTING',
+        'In Production': 'DESIGNING',
+        'Ready for Pickup': 'READY',
+        'Ready for Delivery': 'READY',
+        'Order Picked Up': 'PICKED_UP',
+        'Order Delivered': 'DELIVERED',
+        Completed: 'COMPLETED',
+      }[updated.status]
       await api.updateStaffOrder(updated.id, {
         customer_name: updated.customerName,
         status,

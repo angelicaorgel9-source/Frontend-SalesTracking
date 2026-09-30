@@ -19,17 +19,60 @@ export default function CustomerLayout({
   const { showEditProfile, closeEditProfile } = useCustomerProfile()
   const [showNewOrder, setShowNewOrder] = useState(false)
   const [hasUnread, setHasUnread] = useState(false)
+  const [products, setProducts] = useState([])
 
   useEffect(() => {
-    api.getCustomerNotifications()
-      .then((notifications) => setHasUnread(notifications.some((notification) => notification.unread)))
-      .catch(() => setHasUnread(false))
+    const refreshNotifications = () => {
+      api.getCustomerNotifications()
+        .then((notifications) => setHasUnread(notifications.some((notification) => notification.unread)))
+        .catch(() => setHasUnread(false))
+    }
+    refreshNotifications()
+    const intervalId = window.setInterval(refreshNotifications, 15000)
+    return () => window.clearInterval(intervalId)
   }, [])
 
-  const handleSaveOrder = (order) => {
-    setShowNewOrder(false)
-    showToast(`Order for ${order.product.name} submitted successfully!`, 'success')
-    navigate('/customer/my-orders')
+  useEffect(() => {
+    api.getProducts()
+      .then((items) => setProducts(items.map((product) => ({
+        ...product,
+        id: String(product.id),
+        price: Number(product.price),
+        priceUnit: 'unit',
+        sizes: ['Standard', 'Custom'],
+        materials: ['Standard', 'Premium'],
+      }))))
+      .catch(() => setProducts([]))
+  }, [])
+
+  const handleSaveOrder = async (order) => {
+    try {
+      const saved = await api.createOrder({
+        branch: order.branchId,
+        branch_id: order.branchId,
+        branch_code: order.branchCode,
+        customer_name: order.customer.name,
+        customer_phone: order.customer.contact,
+        customer_email: order.customer.email,
+        fulfillment_method: order.fulfillmentMethod,
+        delivery_address: order.deliveryAddress,
+        payment_method: order.payment,
+        items: [{
+          product: order.product.service_id || order.product.id,
+          item_name: order.product.name,
+          quantity: order.quantity,
+          unit_price: order.product.price,
+          size: order.size,
+          material: order.material,
+          specifications: order.notes,
+        }],
+      })
+      setShowNewOrder(false)
+      showToast(`Order ${saved.transaction_id} submitted successfully!`, 'success')
+      navigate('/customer/my-orders')
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
   }
 
   return (
@@ -54,7 +97,7 @@ export default function CustomerLayout({
         )}
       </footer>
 
-      {showNewOrder && <NewOrderModal onClose={() => setShowNewOrder(false)} onSave={handleSaveOrder} />}
+      {showNewOrder && <NewOrderModal products={products} onClose={() => setShowNewOrder(false)} onSave={handleSaveOrder} />}
       {showEditProfile && <EditProfileModal onClose={closeEditProfile} />}
     </div>
   )

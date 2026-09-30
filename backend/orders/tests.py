@@ -1,9 +1,10 @@
 from rest_framework import status
 from rest_framework.test import APITestCase
 import calendar
+from django.test import override_settings
 from django.utils import timezone
 
-from accounts.models import User
+from accounts.models import CustomerNotification, User
 from branches.models import Branch
 from products.models import Inventory, Product
 from orders.models import Order
@@ -28,7 +29,140 @@ class BranchScopedOrderTests(APITestCase):
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['branch_name'], 'Baliuag')
+        self.assertEqual(response.data['delivery_fee'], '100.00')
+        self.assertEqual(response.data['total_amount'], '300.00')
+
+    def test_customer_pickup_order_has_no_delivery_fee(self):
+        customer = User.objects.create_user(
+            username='pickup-customer', password='test-password', role=User.CUSTOMER,
+        )
+        self.client.force_authenticate(customer)
+
+        response = self.client.post('/api/orders/', {
+            'branch': self.branch.id,
+            'customer_name': 'Pickup Customer',
+            'customer_phone': '09170000001',
+            'fulfillment_method': Order.FULFILLMENT_PICKUP,
+            'items': [{'product': self.product.id, 'quantity': 2}],
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['fulfillment_method'], Order.FULFILLMENT_PICKUP)
+        self.assertEqual(response.data['delivery_fee'], '0.00')
         self.assertEqual(response.data['total_amount'], '200.00')
+
+    def test_customer_delivery_order_includes_delivery_fee(self):
+        customer = User.objects.create_user(
+            username='delivery-customer', password='test-password', role=User.CUSTOMER,
+        )
+        self.client.force_authenticate(customer)
+
+        response = self.client.post('/api/orders/', {
+            'branch': self.branch.id,
+            'customer_name': 'Delivery Customer',
+            'customer_phone': '09170000002',
+            'fulfillment_method': Order.FULFILLMENT_DELIVERY,
+            'delivery_address': '123 Sample Street',
+            'items': [{'product': self.product.id, 'quantity': 2}],
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['delivery_fee'], '100.00')
+        self.assertEqual(response.data['total_amount'], '300.00')
+        self.assertEqual(response.data['delivery_address'], '123 Sample Street')
+
+    @override_settings(MONGO_URI='')
+    def test_employee_ready_status_notifies_customer(self):
+        customer = User.objects.create_user(
+            username='ready-customer', email='ready@example.com', password='test-password', role=User.CUSTOMER,
+        )
+        order = Order.objects.create(
+            branch=self.branch,
+            created_by=customer,
+            customer_name='Ready Customer',
+            customer_phone='09170000003',
+            fulfillment_method=Order.FULFILLMENT_PICKUP,
+            delivery_fee=0,
+            total_amount=100,
+        )
+        self.client.force_authenticate(self.employee)
+
+        response = self.client.patch(
+            f'/api/orders/{order.transaction_id}/status/',
+            {'status': Order.STATUS_READY},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        notification = CustomerNotification.objects.get(user=customer, order_id=order.transaction_id)
+        self.assertEqual(notification.title, 'Order ready for pickup')
+        self.assertIn(self.branch.name, notification.message)
+
+        self.client.force_authenticate(customer)
+        notifications_response = self.client.get('/api/notifications/customers/')
+        self.assertEqual(notifications_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(notifications_response.data[0]['orderId'], order.transaction_id)
+        self.assertTrue(notifications_response.data[0]['unread'])
+
+    @override_settings(MONGO_URI='')
+    def test_employee_can_mark_pickup_and_delivery_orders_complete(self):
+        pickup_customer = User.objects.create_user(
+            username='picked-up-customer', password='test-password', role=User.CUSTOMER,
+        )
+        delivery_customer = User.objects.create_user(
+            username='delivered-customer', password='test-password', role=User.CUSTOMER,
+        )
+        pickup_order = Order.objects.create(
+            branch=self.branch, created_by=pickup_customer, customer_name='Pickup Customer',
+            customer_phone='09170000004', fulfillment_method=Order.FULFILLMENT_PICKUP,
+            delivery_fee=0, total_amount=100,
+        )
+        delivery_order = Order.objects.create(
+            branch=self.branch, created_by=delivery_customer, customer_name='Delivery Customer',
+            customer_phone='09170000005', fulfillment_method=Order.FULFILLMENT_DELIVERY,
+            delivery_fee=100, total_amount=200,
+        )
+        self.client.force_authenticate(self.employee)
+
+        pickup_response = self.client.patch(
+            f'/api/orders/{pickup_order.transaction_id}/status/',
+            {'status': Order.STATUS_PICKED_UP},
+            format='json',
+        )
+        delivery_response = self.client.patch(
+            f'/api/orders/{delivery_order.transaction_id}/status/',
+            {'status': Order.STATUS_DELIVERED},
+            format='json',
+        )
+
+        self.assertEqual(pickup_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(delivery_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(pickup_order.__class__.objects.get(pk=pickup_order.pk).status, Order.STATUS_PICKED_UP)
+        self.assertEqual(delivery_order.__class__.objects.get(pk=delivery_order.pk).status, Order.STATUS_DELIVERED)
+        self.assertEqual(CustomerNotification.objects.get(user=pickup_customer).title, 'Order picked up')
+        self.assertEqual(CustomerNotification.objects.get(user=delivery_customer).title, 'Order delivered')
+
+    @override_settings(MONGO_URI='')
+    def test_employee_cannot_finish_order_with_wrong_fulfillment_status(self):
+        customer = User.objects.create_user(
+            username='wrong-final-status-customer', password='test-password', role=User.CUSTOMER,
+        )
+        delivery_order = Order.objects.create(
+            branch=self.branch, created_by=customer, customer_name='Delivery Customer',
+            customer_phone='09170000006', fulfillment_method=Order.FULFILLMENT_DELIVERY,
+            delivery_fee=100, total_amount=200,
+        )
+        self.client.force_authenticate(self.employee)
+
+        response = self.client.patch(
+            f'/api/orders/{delivery_order.transaction_id}/status/',
+            {'status': Order.STATUS_PICKED_UP},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Order.objects.get(pk=delivery_order.pk).status, Order.STATUS_PLACED)
+        self.assertFalse(CustomerNotification.objects.filter(user=customer).exists())
 
     def test_sales_summary_breaks_down_by_branch(self):
         other_branch, _ = Branch.objects.get_or_create(code='tangos', defaults={'name': 'Tangos'})

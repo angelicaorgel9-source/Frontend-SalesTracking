@@ -62,7 +62,9 @@ export default function ProductsServices() {
         customer_name: order.customer.name,
         customer_phone: order.customer.contact,
         customer_email: order.customer.email,
-        payment_method: order.payment.toUpperCase() === 'GCASH' ? 'GCASH' : 'CASH',
+        fulfillment_method: order.fulfillmentMethod,
+        delivery_address: order.deliveryAddress,
+        payment_method: order.payment,
         items: [{
           product: order.product.service_id || order.product.id,
           item_name: order.product.name,

@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from orders.models import Order
-from .models import User
+from .models import CustomerNotification, User
 from .permissions import IsAdmin, IsAdminOrEmployee
 from .serializers import CustomerProfileUpdateSerializer, CustomerSignupSerializer, CreateEmployeeSerializer, UserSerializer
 from .serializers import (
@@ -605,7 +605,21 @@ class CustomerNotificationsView(APIView):
 
     def get(self, request):
         if not settings.MONGO_URI:
-            return Response([])
+            notifications = CustomerNotification.objects.filter(user=request.user)
+            return Response([
+                {
+                    'id': str(notification.id),
+                    'category': notification.category,
+                    'type': notification.type,
+                    'title': notification.title,
+                    'desc': notification.message,
+                    'time': notification.created_at,
+                    'unread': not notification.is_read,
+                    'action': 'Track Order' if notification.order_id else 'View Details',
+                    'orderId': notification.order_id or None,
+                }
+                for notification in notifications
+            ])
         database = get_mongo_database()
         owner_filter = {
             '$or': [
@@ -661,4 +675,6 @@ class CustomerNotificationsView(APIView):
                 },
                 {'$set': {'isRead': True}},
             )
+        else:
+            CustomerNotification.objects.filter(user=request.user, is_read=False).update(is_read=True)
         return Response({'detail': 'Notifications marked as read.'})

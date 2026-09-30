@@ -6,7 +6,12 @@ const statusBadge = {
   Queued: 'badge-neutral',
   'In Progress': 'badge-warning',
   Review: 'badge-info',
+  'Ready for Pickup': 'badge-info',
+  'Ready for Delivery': 'badge-info',
+  'Order Picked Up': 'badge-success',
+  'Order Delivered': 'badge-success',
   Completed: 'badge-success',
+  Cancelled: 'badge-danger',
 }
 
 const tabs = ['All Status', 'Queued', 'In Progress']
@@ -23,7 +28,16 @@ export default function FullQueueModal({ onClose, onViewOrder }) {
       id: order.transaction_id,
       customer: order.customer_name,
       details: (order.items || []).map((item) => item.product_name).join(', '),
-      status: { PLACED: 'Queued', DESIGNING: 'In Progress', PRINTING: 'In Progress', READY: 'Review', COMPLETED: 'Completed', CANCELLED: 'Cancelled' }[order.status] || order.status,
+      status: {
+        PLACED: 'Queued',
+        DESIGNING: 'In Progress',
+        PRINTING: 'In Progress',
+        READY: order.fulfillment_method === 'PICKUP' ? 'Ready for Pickup' : 'Ready for Delivery',
+        PICKED_UP: 'Order Picked Up',
+        DELIVERED: 'Order Delivered',
+        COMPLETED: 'Completed',
+        CANCELLED: 'Cancelled',
+      }[order.status] || order.status,
       priority: order.status === 'DESIGNING' || order.status === 'PRINTING' ? 'urgent' : 'up',
     })))).catch(() => setOrders([]))
   }, [])

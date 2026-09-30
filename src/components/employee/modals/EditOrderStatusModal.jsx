@@ -1,13 +1,21 @@
 import { useState } from 'react'
 import Modal from '../../Modal.jsx'
 
-const statusStages = [
-  { key: 'Preparing', dot: 'var(--color-warning)' },
-  { key: 'In Production', dot: 'var(--color-info)' },
-  { key: 'Completed', dot: 'var(--color-success)' },
-]
+function statusStages(order) {
+  const pickup = order?.fulfillment_method === 'PICKUP'
+  return [
+    { key: 'Preparing', dot: 'var(--color-warning)' },
+    { key: 'In Production', dot: 'var(--color-info)' },
+    { key: pickup ? 'Ready for Pickup' : 'Ready for Delivery', dot: 'var(--color-success)' },
+    { key: pickup ? 'Order Picked Up' : 'Order Delivered', dot: 'var(--color-success)' },
+    { key: 'Completed', dot: 'var(--color-success)' },
+  ]
+}
 
 function defaultStage(order) {
+  if (order?.backendStatus === 'PICKED_UP') return 'Order Picked Up'
+  if (order?.backendStatus === 'DELIVERED') return 'Order Delivered'
+  if (order?.backendStatus === 'READY') return order?.fulfillment_method === 'PICKUP' ? 'Ready for Pickup' : 'Ready for Delivery'
   if (order?.statusType === 'success') return 'Completed'
   if (order?.statusType === 'danger') return 'In Production'
   return 'Preparing'
@@ -20,6 +28,7 @@ export default function EditOrderStatusModal({ order, onClose, onSave }) {
   if (!order) return null
 
   const currentStage = defaultStage(order)
+  const stages = statusStages(order)
 
   const handleSave = () => {
     onSave({ ...order, stage: newStatus, note })
@@ -62,8 +71,8 @@ export default function EditOrderStatusModal({ order, onClose, onSave }) {
 
       <div className="field">
         <label>New Status</label>
-        <div className="three-col" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-          {statusStages.map((s) => (
+        <div className="two-col" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+          {stages.map((s) => (
             <button
               key={s.key}
               type="button"

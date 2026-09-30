@@ -11,12 +11,14 @@ import { useToast } from '../../context/ToastContext.jsx'
 import { api } from '../../utils/api.js'
 import { downloadCsv } from '../../utils/csv.js'
 
-const toUiStatus = (status) => {
+const toUiStatus = (status, fulfillmentMethod = 'DELIVERY') => {
   const mapping = {
     PLACED: 'Pending Proof',
     DESIGNING: 'In Production',
     PRINTING: 'Printing',
-    READY: 'Shipped',
+    READY: fulfillmentMethod === 'PICKUP' ? 'Ready for Pickup' : 'Ready for Delivery',
+    PICKED_UP: 'Order Picked Up',
+    DELIVERED: 'Order Delivered',
     COMPLETED: 'Completed',
     CANCELLED: 'Cancelled',
   }
@@ -24,7 +26,7 @@ const toUiStatus = (status) => {
 }
 
 const toUiStatusType = (status) => {
-  if (status === 'COMPLETED') return 'success'
+  if (['PICKED_UP', 'DELIVERED', 'COMPLETED'].includes(status)) return 'success'
   if (status === 'PRINTING' || status === 'DESIGNING') return 'danger'
   if (status === 'READY') return 'neutral'
   return 'warning'
@@ -52,7 +54,7 @@ const statusBadge = {
 
 let draftIdCounter = 1
 
-const statusOptions = ['All Statuses', 'Pending Proof', 'In Production', 'Printing', 'Review', 'Completed', 'Cancelled', 'Shipped']
+const statusOptions = ['All Statuses', 'Pending Proof', 'In Production', 'Printing', 'Review', 'Ready for Pickup', 'Ready for Delivery', 'Order Picked Up', 'Order Delivered', 'Completed', 'Cancelled']
 const branchOptions = ['All Branches']
 const dateOptions = ['All Dates', 'Today', 'This Week', 'This Month']
 
@@ -101,9 +103,10 @@ export default function Orders() {
             initials: (order.customer_name || 'WC').trim().split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
             email: order.customer_email || 'No email provided',
             project: itemNames[0] || 'Custom Print Order',
-            details: `(${(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)} units) ${details}`,
+            details: `${order.fulfillment_method === 'PICKUP' ? 'Pickup' : 'Delivery'} · (${(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)} units) ${details}`,
             branch: order.branch_name || 'Unassigned',
-            status: toUiStatus(order.status),
+            fulfillment_method: order.fulfillment_method || 'DELIVERY',
+            status: toUiStatus(order.status, order.fulfillment_method),
             statusType: toUiStatusType(order.status),
             backendStatus: order.status,
             totalAmount: Number(order.total_amount || 0),
@@ -204,7 +207,16 @@ export default function Orders() {
 
   const handleSaveEditOrder = async (updated) => {
     try {
-      const statusMap = { 'Pending Proof': 'PLACED', Printing: 'PRINTING', 'In Production': 'DESIGNING', Completed: 'COMPLETED', Shipped: 'READY' }
+      const statusMap = {
+        'Pending Proof': 'PLACED',
+        Printing: 'PRINTING',
+        'In Production': 'DESIGNING',
+        'Ready for Pickup': 'READY',
+        'Ready for Delivery': 'READY',
+        'Order Picked Up': 'PICKED_UP',
+        'Order Delivered': 'DELIVERED',
+        Completed: 'COMPLETED',
+      }
       const payload = {
         customer_name: updated.customerName,
         estimated_completion: updated.dueDate || null,
@@ -215,7 +227,7 @@ export default function Orders() {
       setOrders((prev) => prev.map((order) => order.id === updated.id ? {
         ...order,
         customer: updated.customerName,
-        status: toUiStatus(payload.status),
+        status: toUiStatus(payload.status, order.fulfillment_method),
         statusType: toUiStatusType(payload.status),
         backendStatus: payload.status,
         dueDate: updated.dueDate,
@@ -231,16 +243,31 @@ export default function Orders() {
 
   const handleSaveOrderStatus = async (updated) => {
     try {
-      const status = { Preparing: 'PLACED', 'In Production': 'DESIGNING', Completed: 'COMPLETED' }[updated.stage]
+      const status = {
+        Preparing: 'PLACED',
+        'In Production': 'DESIGNING',
+        'Ready for Pickup': 'READY',
+        'Ready for Delivery': 'READY',
+        'Order Picked Up': 'PICKED_UP',
+        'Order Delivered': 'DELIVERED',
+        Completed: 'COMPLETED',
+      }[updated.stage]
       await api.updateOrderStatus(updated.id, status)
       setOrders((prev) => prev.map((order) => order.id === updated.id ? {
         ...order,
-        status: toUiStatus(status),
+        status: toUiStatus(status, order.fulfillment_method),
         statusType: toUiStatusType(status),
         backendStatus: status,
       } : order))
       setStatusOrder(null)
-      showToast('Order status updated', 'success')
+      const completionMessage = status === 'PICKED_UP'
+        ? 'Customer notified that the order was picked up.'
+        : status === 'DELIVERED'
+          ? 'Customer notified that the order was delivered.'
+          : status === 'READY'
+            ? 'Customer notified that the order is ready.'
+            : 'Order status updated'
+      showToast(completionMessage, 'success')
     } catch (error) {
       showToast(error.message, 'error')
     }

@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import {
-  Check, Palette, Printer, Package, PackageCheck, Download, Share2, ListOrdered, Search, Pencil,
+  Check, Palette, Printer, Package, PackageCheck, Download, Share2, ListOrdered, Search, Pencil, Truck,
 } from 'lucide-react'
 import CustomerLayout from '../../layouts/CustomerLayout.jsx'
-import { orderSteps } from '../../data/customerMockData.js'
 import { useToast } from '../../context/ToastContext.jsx'
 import { api } from '../../utils/api.js'
 import EditOrderModal from '../../components/customer/modals/EditOrderModal.jsx'
 import { downloadPdfReport } from '../../utils/pdf.js'
 
 const stepIcons = [Check, Palette, Printer, Package, PackageCheck]
+
+function progressSteps(order) {
+  return order.fulfillment_method === 'PICKUP'
+    ? ['Order Placed', 'Designing', 'Printing', 'Ready for Pickup', 'Order Picked Up']
+    : ['Order Placed', 'Designing', 'Printing', 'Ready for Delivery', 'Order Delivered']
+}
 
 function normalizeOrderId(value) {
   return (value || '')
@@ -25,12 +30,22 @@ function statusLabel(order) {
 }
 
 function normalizeOrder(order) {
-  const steps = { PLACED: 0, DESIGNING: 1, PRINTING: 2, READY: 3, COMPLETED: 4 }
+  const pickup = order.fulfillment_method === 'PICKUP'
+  const steps = { PLACED: 0, DESIGNING: 1, PRINTING: 2, READY: 3, PICKED_UP: 4, DELIVERED: 4, COMPLETED: 4 }
   return {
     ...order,
     id: order.transaction_id,
     currentStep: steps[order.status] ?? 0,
-    statusLabel: { PLACED: 'Order Placed', DESIGNING: 'Designing', PRINTING: 'Printing', READY: 'Ready for Pickup', COMPLETED: 'Completed', CANCELLED: 'Cancelled' }[order.status] || order.status,
+    statusLabel: {
+      PLACED: 'Order Placed',
+      DESIGNING: 'Designing',
+      PRINTING: 'Printing',
+      READY: pickup ? 'Ready for Pickup' : 'Ready for Delivery',
+      PICKED_UP: 'Order Picked Up',
+      DELIVERED: 'Order Delivered',
+      COMPLETED: 'Completed',
+      CANCELLED: 'Cancelled',
+    }[order.status] || order.status,
     lastUpdated: new Date(order.updated_at || order.created_at).toLocaleString(),
     items: order.items.map((item) => ({ name: item.product_name, qty: `${item.quantity} unit(s)`, price: Number(item.subtotal) })),
   }
@@ -78,6 +93,7 @@ export default function TrackOrder() {
 
   const subtotal = order ? order.items.reduce((sum, it) => sum + it.price, 0) : 0
   const total = order ? Number(order.total_amount || subtotal) : 0
+  const deliveryFee = order ? Number(order.delivery_fee || 0) : 0
 
   const handleEditOrder = async (updates) => {
     try {
@@ -92,16 +108,15 @@ export default function TrackOrder() {
   }
 
   const handleDownloadInvoice = () => {
+    const rows = order.items.map((item) => [item.name, item.qty, `PHP ${item.price.toFixed(2)}`])
+    if (order.fulfillment_method === 'DELIVERY') rows.push(['Delivery Fee', '', `PHP ${deliveryFee.toFixed(2)}`])
+    rows.push(['Total', '', `PHP ${total.toFixed(2)}`])
     downloadPdfReport({
       filename: `MJ-Prints-Invoice-${order.transaction_id}.pdf`,
       heading: `Invoice ${order.transaction_id}`,
       subheading: `Customer: ${order.customer_name || 'Customer'} | Status: ${statusLabel(order)}`,
       columns: ['Item', 'Quantity', 'Amount'],
-      rows: [
-        ...order.items.map((item) => [item.name, item.qty, `PHP ${item.price.toFixed(2)}`]),
-        ['Delivery Fee', '', 'PHP 100.00'],
-        ['Total', '', `PHP ${total.toFixed(2)}`],
-      ],
+      rows,
     })
     showToast('Invoice downloaded.', 'success')
   }
@@ -139,6 +154,9 @@ export default function TrackOrder() {
                 <span className="notif-unread-dot" style={{ position: 'static', marginRight: 6, display: 'inline-block' }} />
                 Last updated {order.lastUpdated}
               </div>
+              <div className="cell-sub" style={{ marginTop: 6 }}>
+                {order.fulfillment_method === 'PICKUP' ? `Pickup at ${order.branch_name || 'selected branch'}` : `Delivery${order.delivery_address ? ` to ${order.delivery_address}` : ''}`}
+              </div>
             </div>
             <div className="flex-row gap-8">
               <button className="btn btn-outline btn-sm" onClick={() => setShowEditOrder(true)}>
@@ -161,11 +179,13 @@ export default function TrackOrder() {
               </div>
 
               <div className="tracking-steps">
-                {orderSteps.map((label, idx) => {
-                  const Icon = stepIcons[idx]
+                {progressSteps(order).map((label, idx) => {
+                  const Icon = idx === 4 && order.fulfillment_method === 'DELIVERY' ? Truck : stepIcons[idx]
                   const done = idx < order.currentStep
-                  const active = idx === order.currentStep
-                  const state = done ? 'done' : active ? 'active' : 'pending'
+                  const isFinished = ['PICKED_UP', 'DELIVERED', 'COMPLETED'].includes(order.status)
+                  const active = idx === order.currentStep && !isFinished
+                  const completed = done || (isFinished && idx === order.currentStep)
+                  const state = completed ? 'done' : active ? 'active' : 'pending'
                   return (
                     <div className={`tracking-step tracking-step-${state}`} key={label}>
                       <div className="tracking-step-line" />
@@ -174,9 +194,9 @@ export default function TrackOrder() {
                       </div>
                       <div className="tracking-step-label">{label}</div>
                       <div className="tracking-step-sub">
-                        {done && 'Completed'}
+                        {completed && 'Completed'}
                         {active && 'In Progress'}
-                        {!done && !active && 'Pending'}
+                        {!completed && !active && 'Pending'}
                       </div>
                     </div>
                   )
@@ -214,6 +234,12 @@ export default function TrackOrder() {
                     <span className="text-secondary">Subtotal</span>
                     <span className="cell-primary">₱{subtotal.toFixed(2)}</span>
                   </div>
+                  {order.fulfillment_method === 'DELIVERY' && (
+                    <div className="flex-between mb-16" style={{ fontSize: 12.5 }}>
+                      <span className="text-secondary">Delivery Fee</span>
+                      <span className="cell-primary">₱{deliveryFee.toFixed(2)}</span>
+                    </div>
+                  )}
                   {order.expressFee > 0 && (
                     <div className="flex-between mb-16" style={{ fontSize: 12.5 }}>
                       <span className="text-secondary">Express Processing</span>

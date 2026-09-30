@@ -31,3 +31,17 @@ class User(AbstractUser):
 
     def __str__(self):
         return f'{self.username} ({self.role})'
+
+
+class CustomerNotification(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='customer_notifications')
+    category = models.CharField(max_length=30, default='Orders')
+    type = models.CharField(max_length=20, default='success')
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    order_id = models.CharField(max_length=20, blank=True)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']

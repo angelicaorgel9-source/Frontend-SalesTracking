@@ -2,20 +2,29 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ListOrdered, ChevronRight } from 'lucide-react'
 import CustomerLayout from '../../layouts/CustomerLayout.jsx'
-import { orderSteps } from '../../data/customerMockData.js'
 import { api } from '../../utils/api.js'
 import { useToast } from '../../context/ToastContext.jsx'
 
-const statusFilters = ['All', ...orderSteps]
+const statusFilters = ['All', 'Order Placed', 'Designing', 'Printing', 'Ready for Pickup', 'Ready for Delivery', 'Order Picked Up', 'Order Delivered', 'Completed', 'Cancelled']
 
 function statusBadgeClass(order) {
-  if (order.status === 'COMPLETED') return 'badge-success'
+  if (['PICKED_UP', 'DELIVERED', 'COMPLETED'].includes(order.status)) return 'badge-success'
   if (order.status === 'PLACED') return 'badge-warning'
   return 'badge-info'
 }
 
 function statusLabel(order) {
-  return order.statusLabel
+  const pickup = order.fulfillment_method === 'PICKUP'
+  return {
+    PLACED: 'Order Placed',
+    DESIGNING: 'Designing',
+    PRINTING: 'Printing',
+    READY: pickup ? 'Ready for Pickup' : 'Ready for Delivery',
+    PICKED_UP: 'Order Picked Up',
+    DELIVERED: 'Order Delivered',
+    COMPLETED: 'Completed',
+    CANCELLED: 'Cancelled',
+  }[order.status] || order.status
 }
 
 function orderTotal(order) {
@@ -38,7 +47,16 @@ export default function MyOrders() {
     api.getOrders().then((items) => setCustomerOrders(items.map((order) => ({
       ...order,
       id: order.transaction_id,
-      statusLabel: { PLACED: 'Order Placed', DESIGNING: 'Designing', PRINTING: 'Printing', READY: 'Ready for Pickup', COMPLETED: 'Completed', CANCELLED: 'Cancelled' }[order.status] || order.status,
+      statusLabel: {
+        PLACED: 'Order Placed',
+        DESIGNING: 'Designing',
+        PRINTING: 'Printing',
+        READY: order.fulfillment_method === 'PICKUP' ? 'Ready for Pickup' : 'Ready for Delivery',
+        PICKED_UP: 'Order Picked Up',
+        DELIVERED: 'Order Delivered',
+        COMPLETED: 'Completed',
+        CANCELLED: 'Cancelled',
+      }[order.status] || order.status,
       placedAt: new Date(order.created_at).toLocaleString(),
       branch: order.branch_name || 'Unassigned',
       items: order.items.map((item) => ({ name: item.product_name, qty: `${item.quantity} unit(s)`, price: Number(item.subtotal) })),
@@ -95,7 +113,9 @@ export default function MyOrders() {
                 <span className="cell-primary" style={{ color: 'var(--color-primary)' }}>#{order.id}</span>
                 <span className={`badge ${statusBadgeClass(order)}`}>{statusLabel(order)}</span>
               </div>
-              <div className="cell-sub" style={{ marginTop: 4 }}>{order.placedAt} • {order.branch} Branch</div>
+              <div className="cell-sub" style={{ marginTop: 4 }}>
+                {order.placedAt} • {order.fulfillment_method === 'PICKUP' ? 'Pickup' : 'Delivery'} • {order.branch} Branch
+              </div>
               <div className="cell-sub" style={{ marginTop: 6 }}>
                 {order.items.map((it) => it.name).join(', ')}
               </div>

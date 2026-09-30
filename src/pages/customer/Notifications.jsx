@@ -21,7 +21,20 @@ export default function Notifications() {
   const [items, setItems] = useState([])
 
   useEffect(() => {
-    api.getCustomerNotifications().then(setItems).catch(() => setItems([]))
+    let isActive = true
+    const refreshNotifications = () => {
+      api.getCustomerNotifications()
+        .then((notifications) => {
+          if (isActive) setItems(notifications)
+        })
+        .catch(() => {})
+    }
+    refreshNotifications()
+    const intervalId = window.setInterval(refreshNotifications, 15000)
+    return () => {
+      isActive = false
+      window.clearInterval(intervalId)
+    }
   }, [])
 
   const filtered = activeTab === 'All' ? items : items.filter((n) => n.category === activeTab)

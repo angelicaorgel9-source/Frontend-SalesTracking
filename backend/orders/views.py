@@ -12,7 +12,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import User
+from accounts.models import CustomerNotification, User
 from accounts.permissions import IsAdmin, IsAdminOrEmployee, IsCustomerOrStaff
 from branches.models import Branch
 from config.mongodb import get_mongo_database
@@ -28,6 +28,26 @@ def mongo_branch_name(document):
     if not branch:
         branch = Branch.objects.filter(code=document.get('branchCode', branch_id)).first()
     return branch.name if branch else ''
+
+
+def order_status_notification_text(status, transaction_id, fulfillment_method, branch_name=''):
+    if status == Order.STATUS_READY:
+        if fulfillment_method == Order.FULFILLMENT_PICKUP:
+            return 'Order ready for pickup', f'Your order {transaction_id} is ready for pickup at {branch_name or "your selected branch"}.'
+        return 'Order ready for delivery', f'Your order {transaction_id} is ready for delivery.'
+    if status == Order.STATUS_PICKED_UP:
+        return 'Order picked up', f'Your order {transaction_id} has been picked up.'
+    if status == Order.STATUS_DELIVERED:
+        return 'Order delivered', f'Your order {transaction_id} has been delivered.'
+    return None
+
+
+def fulfillment_status_error(status, fulfillment_method):
+    if status == Order.STATUS_PICKED_UP and fulfillment_method != Order.FULFILLMENT_PICKUP:
+        return 'Only pickup orders can be marked as picked up.'
+    if status == Order.STATUS_DELIVERED and fulfillment_method != Order.FULFILLMENT_DELIVERY:
+        return 'Only delivery orders can be marked as delivered.'
+    return None
 
 
 class OrderListCreateView(generics.ListCreateAPIView):
@@ -55,6 +75,9 @@ class OrderListCreateView(generics.ListCreateAPIView):
             'branch_name': mongo_branch_name(document),
             'status': document.get('status', 'PLACED'),
             'payment_method': document.get('paymentMethod', 'CASH'),
+            'fulfillment_method': document.get('fulfillmentMethod', Order.FULFILLMENT_DELIVERY),
+            'delivery_fee': document.get('deliveryFee', float(Order.DELIVERY_FEE)),
+            'delivery_address': document.get('deliveryAddress', ''),
             'total_amount': document.get('totalAmount', 0),
             'created_at': document.get('createdAt'),
             'updated_at': document.get('updatedAt'),
@@ -69,6 +92,13 @@ class OrderListCreateView(generics.ListCreateAPIView):
             return Response({'detail': 'An order needs at least one item.'}, status=400)
 
         now = datetime.now(dt_timezone.utc)
+        fulfillment_method = data.get('fulfillment_method', Order.FULFILLMENT_DELIVERY)
+        if fulfillment_method not in {value for value, _label in Order.FULFILLMENT_CHOICES}:
+            return Response({'fulfillment_method': 'Select Pickup or Delivery.'}, status=400)
+        delivery_address = str(data.get('delivery_address', '')).strip()
+        if request.user.role == User.CUSTOMER and fulfillment_method == Order.FULFILLMENT_DELIVERY and not delivery_address:
+            return Response({'delivery_address': 'A delivery address is required for delivery orders.'}, status=400)
+        delivery_fee = float(Order.DELIVERY_FEE) if fulfillment_method == Order.FULFILLMENT_DELIVERY else 0
         mongo_items = []
         subtotal = 0
         for item in items:
@@ -96,12 +126,14 @@ class OrderListCreateView(generics.ListCreateAPIView):
             'customerName': data.get('customer_name', ''),
             'customerPhone': data.get('customer_phone', ''),
             'customerEmail': data.get('customer_email', ''),
+            'fulfillmentMethod': fulfillment_method,
+            'deliveryAddress': delivery_address,
             'branchId': data.get('branch_id'),
             'branchCode': data.get('branch_code'),
             'items': mongo_items,
             'subtotal': subtotal,
-            'deliveryFee': 100,
-            'totalAmount': subtotal + 100,
+            'deliveryFee': delivery_fee,
+            'totalAmount': subtotal + delivery_fee,
             'paymentMethod': data.get('payment_method', 'CASH'),
             'status': 'PLACED',
             'statusHistory': [{'status': 'PLACED', 'timestamp': now, 'updatedBy': None}],
@@ -217,6 +249,11 @@ class OrderStatusUpdateView(APIView):
             order = collection.find_one({'transactionId': transaction_id})
             if not order:
                 return Response({'detail': 'Order not found.'}, status=404)
+            previous_status = order.get('status')
+            fulfillment_method = order.get('fulfillmentMethod', Order.FULFILLMENT_DELIVERY)
+            status_error = fulfillment_status_error(status_value, fulfillment_method)
+            if status_error:
+                return Response({'status': status_error}, status=400)
             now = datetime.now(dt_timezone.utc)
             field_map = {
                 'customer_name': 'customerName',
@@ -238,11 +275,30 @@ class OrderStatusUpdateView(APIView):
                 {'_id': order['_id']},
                 operations,
             )
+            notification_statuses = {Order.STATUS_READY, Order.STATUS_PICKED_UP, Order.STATUS_DELIVERED}
+            if status_value in notification_statuses and previous_status != status_value:
+                location = mongo_branch_name(order) if fulfillment_method == Order.FULFILLMENT_PICKUP else ''
+                title, message = order_status_notification_text(status_value, transaction_id, fulfillment_method, location)
+                get_mongo_database()['notifications_customers'].insert_one({
+                    'customerId': order.get('customerId'),
+                    'customerEmail': order.get('customerEmail', ''),
+                    'category': 'Orders',
+                    'type': 'success',
+                    'title': title,
+                    'message': message,
+                    'orderId': transaction_id,
+                    'isRead': False,
+                    'createdAt': now,
+                })
             return Response({'transaction_id': transaction_id, 'status': status_value, 'updated_at': now})
 
         order = Order.objects.filter(transaction_id=transaction_id).first()
         if not order:
             return Response({'detail': 'Order not found.'}, status=404)
+        previous_status = order.status
+        status_error = fulfillment_status_error(status_value, order.fulfillment_method)
+        if status_error:
+            return Response({'status': status_error}, status=400)
         field_map = {
             'customer_name': 'customer_name',
             'customer_phone': 'customer_phone',
@@ -261,6 +317,24 @@ class OrderStatusUpdateView(APIView):
             order.status = status_value
             updated_fields.append('status')
         order.save(update_fields=updated_fields)
+        notification_statuses = {Order.STATUS_READY, Order.STATUS_PICKED_UP, Order.STATUS_DELIVERED}
+        if status_value in notification_statuses and previous_status != status_value:
+            customer = order.created_by
+            if not customer and order.customer_email:
+                customer = User.objects.filter(role=User.CUSTOMER, email__iexact=order.customer_email).first()
+            if customer and customer.role == User.CUSTOMER:
+                branch_name = order.branch.name if order.branch else ''
+                title, message = order_status_notification_text(
+                    status_value, order.transaction_id, order.fulfillment_method, branch_name,
+                )
+                CustomerNotification.objects.create(
+                    user=customer,
+                    category='Orders',
+                    type='success',
+                    title=title,
+                    message=message,
+                    order_id=order.transaction_id,
+                )
         return Response({'transaction_id': transaction_id, 'status': order.status, 'updated_at': order.updated_at})
 
 
@@ -306,6 +380,9 @@ class OrderTrackView(generics.RetrieveAPIView):
                 'customer_email': document.get('customerEmail', ''),
                 'branch_name': mongo_branch_name(document),
                 'payment_method': document.get('paymentMethod', 'CASH'),
+                'fulfillment_method': document.get('fulfillmentMethod', Order.FULFILLMENT_DELIVERY),
+                'delivery_fee': document.get('deliveryFee', float(Order.DELIVERY_FEE)),
+                'delivery_address': document.get('deliveryAddress', ''),
                 'status': document.get('status', 'PLACED'),
                 'created_at': document.get('createdAt'),
                 'updated_at': document.get('updatedAt'),

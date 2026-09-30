@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react'
-import { UploadCloud, Wallet, Smartphone, Landmark, CreditCard } from 'lucide-react'
+import { UploadCloud, Wallet, QrCode, CreditCard, Info, Store, Truck } from 'lucide-react'
 import Modal from '../../Modal.jsx'
 import { useCustomerProfile } from '../../../context/CustomerProfileContext.jsx'
 import { api } from '../../../utils/api.js'
 
 const paymentMethods = [
-  { key: 'Cash', icon: Wallet },
-  { key: 'GCash', icon: Smartphone },
-  { key: 'Maya', icon: Smartphone },
-  { key: 'Bank Transfer', icon: Landmark },
+  { key: 'CASH', label: 'Cash', icon: Wallet },
+  { key: 'QRPH', label: 'QR Ph', icon: QrCode },
+]
+
+const fulfillmentOptions = [
+  { key: 'PICKUP', label: 'Pick up', icon: Store },
+  { key: 'DELIVERY', label: 'Delivery', icon: Truck },
 ]
 
 export default function NewOrderModal({ onClose, onSave, initialProduct = null, products = [] }) {
-  if (!products.length) return null
   const { profile } = useCustomerProfile()
   const [branches, setBranches] = useState([])
   const [branchId, setBranchId] = useState('')
@@ -22,15 +24,24 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
     email: profile.email || '',
     address: '',
   })
-  const [productId, setProductId] = useState(initialProduct?.id || products[0]?.id)
-  const product = products.find((p) => String(p.id) === String(productId)) || products[0]
-  const [size, setSize] = useState(product.sizes[0])
+  const [productId, setProductId] = useState(initialProduct?.id || products[0]?.id || '')
+  const product = products.find((p) => String(p.id) === String(productId)) || products[0] || null
+  const [size, setSize] = useState(initialProduct?.sizes?.[0] || products[0]?.sizes?.[0] || '')
   const [customSize, setCustomSize] = useState('')
-  const [material, setMaterial] = useState(product.materials[0])
+  const [material, setMaterial] = useState(initialProduct?.materials?.[0] || products[0]?.materials?.[0] || '')
   const [quantity, setQuantity] = useState(10)
-  const [payment, setPayment] = useState('GCash')
+  const [fulfillmentMethod, setFulfillmentMethod] = useState('DELIVERY')
+  const [payment, setPayment] = useState('CASH')
   const [notes, setNotes] = useState('')
   const [designFile, setDesignFile] = useState(null)
+
+  useEffect(() => {
+    if (!productId && products.length) {
+      setProductId(String(products[0].id))
+      setSize(products[0].sizes[0])
+      setMaterial(products[0].materials[0])
+    }
+  }, [productId, products])
 
   useEffect(() => {
     api.getBranches().then((items) => {
@@ -40,20 +51,23 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
   }, [])
 
   const handleProductChange = (id) => {
-    const next = products.find((p) => String(p.id) === String(id)) || products[0]
+    const next = products.find((p) => String(p.id) === String(id))
+    if (!next) return
     setProductId(id)
     setSize(next.sizes[0])
     setCustomSize('')
     setMaterial(next.materials[0])
   }
 
-  const base = product.price * quantity
+  const base = (product?.price || 0) * quantity
   const discount = quantity >= 100 ? Math.round(base * 0.05) : 0
-  const delivery = 100
-  const total = base - discount + delivery
+  const deliveryFee = fulfillmentMethod === 'DELIVERY' ? 100 : 0
+  const total = base - discount + deliveryFee
+  const formattedTotal = total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   const handleSubmit = () => {
-    if (!customer.name.trim() || !customer.address.trim() || !branchId) return
+    if (!product || !customer.name.trim() || !branchId) return
+    if (fulfillmentMethod === 'DELIVERY' && !customer.address.trim()) return
     if (size === 'Custom' && !customSize.trim()) return
     onSave({
       product,
@@ -62,6 +76,9 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
       size: size === 'Custom' ? customSize.trim() : size,
       material,
       quantity,
+      fulfillmentMethod,
+      deliveryFee,
+      deliveryAddress: fulfillmentMethod === 'DELIVERY' ? customer.address.trim() : '',
       payment,
       notes,
       customer,
@@ -79,12 +96,13 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
       actions={(
         <>
           <button className="btn btn-danger-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSubmit}>Submit Order</button>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={!products.length}>Submit Order</button>
         </>
       )}
     >
       <div className="two-col" style={{ gridTemplateColumns: '1.6fr 1fr', alignItems: 'start', gap: 20 }}>
         <div>
+          {!products.length && <div className="section-sub mb-16">No products are available to order yet. Please try again later.</div>}
           <div className="section-title mb-16">Customer Information</div>
           <div className="two-col" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <div className="field">
@@ -100,12 +118,37 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
             <label>Email Address</label>
             <input className="input" type="email" placeholder="john@example.com" value={customer.email} onChange={(e) => setCustomer((c) => ({ ...c, email: e.target.value }))} />
           </div>
-          <div className="field">
-            <label>Delivery Address</label>
-            <input className="input" placeholder="Street, City, Province, Zip Code" value={customer.address} onChange={(e) => setCustomer((c) => ({ ...c, address: e.target.value }))} />
-          </div>
+          {fulfillmentMethod === 'DELIVERY' && (
+            <div className="field">
+              <label>Delivery Address</label>
+              <input className="input" placeholder="Street, City, Province, Zip Code" value={customer.address} onChange={(e) => setCustomer((c) => ({ ...c, address: e.target.value }))} />
+            </div>
+          )}
 
           <div className="section-title mb-16" style={{ marginTop: 8 }}>Order Configuration</div>
+          <div className="field">
+            <label>Fulfillment</label>
+            <div className="two-col" style={{ gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {fulfillmentOptions.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFulfillmentMethod(key)}
+                  className="card"
+                  aria-pressed={fulfillmentMethod === key}
+                  style={{
+                    padding: '12px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                    cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                    borderColor: fulfillmentMethod === key ? 'var(--color-primary)' : 'var(--color-border)',
+                    background: fulfillmentMethod === key ? 'var(--color-secondary)' : '#fff',
+                  }}
+                >
+                  <Icon size={16} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="field">
             <label>Branch</label>
             <select className="input" value={branchId} onChange={(event) => setBranchId(event.target.value)} required>
@@ -115,6 +158,7 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
           <div className="field">
             <label>Product</label>
             <select className="input" value={productId} onChange={(e) => handleProductChange(e.target.value)}>
+              {!products.length && <option value="">No products available</option>}
               {products.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
@@ -125,7 +169,7 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
             <div className="field">
               <label>Size</label>
               <select className="input" value={size} onChange={(e) => setSize(e.target.value)}>
-                {product.sizes.map((s) => <option key={s} value={s}>{s}</option>)}
+                {product?.sizes?.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
               {size === 'Custom' && (
                 <input
@@ -140,7 +184,7 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
             <div className="field">
               <label>Material / Finish</label>
               <select className="input" value={material} onChange={(e) => setMaterial(e.target.value)}>
-                {product.materials.map((m) => <option key={m} value={m}>{m}</option>)}
+                {product?.materials?.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
           </div>
@@ -151,7 +195,7 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
               <button type="button" className="icon-btn" onClick={() => setQuantity((q) => Math.max(1, q - 1))}>-</button>
               <input className="input" style={{ textAlign: 'center' }} value={quantity} onChange={(e) => setQuantity(Number(e.target.value) || 1)} />
               <button type="button" className="icon-btn" onClick={() => setQuantity((q) => q + 1)}>+</button>
-              <span className="section-sub" style={{ whiteSpace: 'nowrap' }}>per {product.priceUnit}</span>
+              <span className="section-sub" style={{ whiteSpace: 'nowrap' }}>per {product?.priceUnit || 'unit'}</span>
             </div>
           </div>
 
@@ -195,7 +239,7 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
               <span className="section-title">Order Summary</span>
             </div>
             <div className="flex-between mb-16" style={{ fontSize: 12.5 }}>
-              <span className="text-secondary">{product.name} ({quantity}x)</span>
+              <span className="text-secondary">{product?.name || 'No product selected'} ({quantity}x)</span>
               <span className="cell-primary">₱{base.toLocaleString()}.00</span>
             </div>
             {discount > 0 && (
@@ -205,19 +249,19 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
               </div>
             )}
             <div className="flex-between mb-16" style={{ fontSize: 12.5 }}>
-              <span className="text-secondary">Delivery Fee</span>
-              <span className="cell-primary">₱{delivery.toLocaleString()}.00</span>
+              <span className="text-secondary">{fulfillmentMethod === 'DELIVERY' ? 'Delivery Fee' : 'Pickup'}</span>
+              <span className="cell-primary">{deliveryFee ? `₱${deliveryFee.toFixed(2)}` : 'No charge'}</span>
             </div>
             <div className="flex-between" style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
               <span className="cell-primary">Total Amount</span>
-              <span className="cell-primary" style={{ color: 'var(--color-primary)', fontSize: 16 }}>₱{total.toLocaleString()}.00</span>
+              <span className="cell-primary" style={{ color: 'var(--color-primary)', fontSize: 16 }}>₱{formattedTotal}</span>
             </div>
           </div>
 
           <div className="card card-pad">
             <div className="section-title mb-16 flex-row gap-8"><CreditCard size={15} /> Payment Method</div>
             <div className="two-col" style={{ gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              {paymentMethods.map(({ key, icon: Icon }) => (
+              {paymentMethods.map(({ key, label, icon: Icon }) => (
                 <button
                   key={key}
                   type="button"
@@ -231,10 +275,16 @@ export default function NewOrderModal({ onClose, onSave, initialProduct = null, 
                   }}
                 >
                   <Icon size={16} />
-                  {key}
+                  {label}
                 </button>
               ))}
             </div>
+            {payment === 'CASH' && (
+              <div className="toast toast-info" role="status" aria-live="polite" style={{ marginTop: 12 }}>
+                <Info size={17} />
+                <span>Please prepare the exact cash amount of ₱{formattedTotal} for your order.</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
